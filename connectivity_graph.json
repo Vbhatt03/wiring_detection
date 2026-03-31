@@ -1,0 +1,527 @@
+{
+  "nodes": [
+    {
+      "id": "Connector-1",
+      "x": 105,
+      "y": 634,
+      "label": "shape-detected (27\u00d716px)",
+      "type": "connector"
+    },
+    {
+      "id": "Connector-2",
+      "x": 676,
+      "y": 336,
+      "label": "shape-detected (48\u00d731px)",
+      "type": "connector"
+    },
+    {
+      "id": "Connector-3",
+      "x": 431,
+      "y": 36,
+      "label": "shape-detected (50\u00d733px)",
+      "type": "connector"
+    },
+    {
+      "id": "Connector-4",
+      "x": 129,
+      "y": 18,
+      "label": "shape-detected (48\u00d735px)",
+      "type": "connector"
+    },
+    {
+      "id": "Clip-1",
+      "x": 429,
+      "y": 161,
+      "label": "Z2-TH1",
+      "type": "clip"
+    },
+    {
+      "id": "Clip-2",
+      "x": 196,
+      "y": 163,
+      "label": "Z2-TH2",
+      "type": "clip"
+    }
+  ],
+  "edges": [
+    {
+      "tapes": [
+        "VT-BK",
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 437,
+      "endpoint_1": [
+        90,
+        708
+      ],
+      "endpoint_2": [
+        1013,
+        708
+      ]
+    },
+    {
+      "tapes": [
+        "VT-BK",
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": null,
+      "endpoint_1": [
+        433,
+        704
+      ],
+      "endpoint_2": [
+        1013,
+        704
+      ]
+    },
+    {
+      "tapes": [
+        "VT-BK",
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": null,
+      "endpoint_1": [
+        428,
+        709
+      ],
+      "endpoint_2": [
+        1013,
+        709
+      ]
+    },
+    {
+      "tapes": [
+        "VT-WH",
+        "VT-WH"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 150,
+      "endpoint_1": [
+        428,
+        667
+      ],
+      "endpoint_2": [
+        428,
+        68
+      ]
+    },
+    {
+      "tapes": [
+        "VT-WH",
+        "VT-WH"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 150,
+      "endpoint_1": [
+        430,
+        676
+      ],
+      "endpoint_2": [
+        430,
+        68
+      ]
+    },
+    {
+      "tapes": [
+        "VT-PK",
+        "VT-PK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 50,
+      "endpoint_1": [
+        191,
+        379
+      ],
+      "endpoint_2": [
+        191,
+        71
+      ]
+    },
+    {
+      "tapes": [
+        "VT-BK",
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": null,
+      "endpoint_1": [
+        414,
+        698
+      ],
+      "endpoint_2": [
+        1013,
+        698
+      ]
+    },
+    {
+      "tapes": [
+        "VT-PK",
+        "VT-PK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 50,
+      "endpoint_1": [
+        202,
+        391
+      ],
+      "endpoint_2": [
+        202,
+        71
+      ]
+    },
+    {
+      "tapes": [
+        "VT-BK",
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": null,
+      "endpoint_1": [
+        433,
+        703
+      ],
+      "endpoint_2": [
+        1013,
+        703
+      ]
+    },
+    {
+      "tapes": [
+        "VT-BK",
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": null,
+      "endpoint_1": [
+        435,
+        705
+      ],
+      "endpoint_2": [
+        1013,
+        705
+      ]
+    },
+    {
+      "tapes": [
+        "VT-PK",
+        "VT-PK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 50,
+      "endpoint_1": [
+        189,
+        377
+      ],
+      "endpoint_2": [
+        189,
+        71
+      ]
+    },
+    {
+      "tapes": [
+        "VT-PK",
+        "VT-PK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 50,
+      "endpoint_1": [
+        200,
+        389
+      ],
+      "endpoint_2": [
+        200,
+        71
+      ]
+    },
+    {
+      "tapes": [
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 28,
+      "endpoint_1": [
+        860,
+        692
+      ],
+      "endpoint_2": [
+        997,
+        695
+      ]
+    },
+    {
+      "tapes": [
+        "VT-PK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 28,
+      "endpoint_1": [
+        127,
+        73
+      ],
+      "endpoint_2": [
+        238,
+        73
+      ]
+    },
+    {
+      "tapes": [
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 28,
+      "endpoint_1": [
+        864,
+        682
+      ],
+      "endpoint_2": [
+        914,
+        682
+      ]
+    },
+    {
+      "tapes": [
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 28,
+      "endpoint_1": [
+        834,
+        691
+      ],
+      "endpoint_2": [
+        997,
+        694
+      ]
+    },
+    {
+      "tapes": [
+        "VT-PK",
+        "VT-PK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 50,
+      "endpoint_1": [
+        196,
+        385
+      ],
+      "endpoint_2": [
+        196,
+        68
+      ]
+    },
+    {
+      "tapes": [
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 28,
+      "endpoint_1": [
+        888,
+        689
+      ],
+      "endpoint_2": [
+        997,
+        693
+      ]
+    },
+    {
+      "tapes": [
+        "VT-PK",
+        "VT-PK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 50,
+      "endpoint_1": [
+        194,
+        383
+      ],
+      "endpoint_2": [
+        194,
+        68
+      ]
+    },
+    {
+      "tapes": [
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 28,
+      "endpoint_1": [
+        864,
+        686
+      ],
+      "endpoint_2": [
+        913,
+        686
+      ]
+    },
+    {
+      "tapes": [
+        "VT-WH"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 25,
+      "endpoint_1": [
+        429,
+        139
+      ],
+      "endpoint_2": [
+        429,
+        68
+      ]
+    },
+    {
+      "tapes": [
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 28,
+      "endpoint_1": [
+        834,
+        690
+      ],
+      "endpoint_2": [
+        906,
+        690
+      ]
+    },
+    {
+      "tapes": [
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 28,
+      "endpoint_1": [
+        864,
+        681
+      ],
+      "endpoint_2": [
+        914,
+        681
+      ]
+    },
+    {
+      "tapes": [
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 28,
+      "endpoint_1": [
+        889,
+        710
+      ],
+      "endpoint_2": [
+        913,
+        756
+      ]
+    },
+    {
+      "tapes": [
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 28,
+      "endpoint_1": [
+        864,
+        684
+      ],
+      "endpoint_2": [
+        913,
+        684
+      ]
+    },
+    {
+      "tapes": [
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 28,
+      "endpoint_1": [
+        887,
+        695
+      ],
+      "endpoint_2": [
+        993,
+        695
+      ]
+    },
+    {
+      "tapes": [
+        "VT-BK",
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 137,
+      "endpoint_1": [
+        375,
+        699
+      ],
+      "endpoint_2": [
+        995,
+        699
+      ]
+    },
+    {
+      "tapes": [
+        "AT-BK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 28,
+      "endpoint_1": [
+        864,
+        680
+      ],
+      "endpoint_2": [
+        914,
+        680
+      ]
+    },
+    {
+      "tapes": [
+        "VT-PK"
+      ],
+      "from": null,
+      "to": null,
+      "length_mm": 28,
+      "endpoint_1": [
+        160,
+        66
+      ],
+      "endpoint_2": [
+        199,
+        69
+      ]
+    }
+  ]
+}
