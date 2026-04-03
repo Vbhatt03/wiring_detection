@@ -4,8 +4,7 @@ Wiring Diagram Detector
 Detects the following elements in an automotive wiring harness diagram:
   - Tape labels (VT-WH, VT-BK, VT-PK, AT-BK, COT-BK)
   - Delphi connectors (rectangular connector symbols)
-  - Dash-dot wires (centre line style)
-  - Zigzag wires (at bottom of diagram)
+  - Wires (all types: dash-dot, zigzag, solid, etc.)
   - Wire lengths (numbers annotated alongside wires)
   - Blue circular clips (marked with an X)
   - Connectivity list: which two components are joined, wire type, length
@@ -59,11 +58,12 @@ def draw_label(canvas, text, pt, color=(0, 200, 0), scale=0.45, thickness=1):
 # ─────────────────────────────────────────────────────────────
 
 def ocr_full(gray):
-    """Return list of (text, x, y, w, h) for every detected word.
+    """Return list of (text, x, y, w, h, angle, confidence) for every detected word.
     
     Scans text at arbitrary angles (every 10°) to catch text at all orientations
     including diagonal text at 75°, 125°, etc.
     Uses lower confidence threshold (20) to capture tilted/weak text.
+    Tracks angle and confidence for later deduplication.
     """
     if not TESSERACT_OK:
         return []
@@ -72,7 +72,7 @@ def ocr_full(gray):
     H_orig, W_orig = gray.shape
     cy, cx = H_orig / 2, W_orig / 2  # Center for rotation
     
-    seen_boxes = []  # Track detected positions to avoid false duplicates
+    seen_boxes = []  # Track detected positions to avoid raw duplicates
     
     # Scan at multiple angles: 0, 10, 20, 30, ... 350 degrees
     for angle in range(0, 360, 10):
@@ -131,7 +131,7 @@ def ocr_full(gray):
                             break
                 
                 if not is_duplicate:
-                    results.append((txt, x, y, w, h))
+                    results.append((txt, x, y, w, h, angle, conf))
                     seen_boxes.append((txt, x + w/2, y + h/2))
     
     return results
@@ -174,7 +174,12 @@ def detect_tape_labels(img, gray, ocr_data):
 
     # — Step 1: Find all potential tape labels in OCR data —
     label_list = []
-    for (txt, tx, ty, tw, th) in ocr_data:
+    for item in ocr_data:
+        # Handle both old format (txt, x, y, w, h) and new format (txt, x, y, w, h, angle, conf)
+        if len(item) >= 5:
+            txt, tx, ty, tw, th = item[0], item[1], item[2], item[3], item[4]
+        else:
+            continue
         m = TAPE_PATTERNS.search(txt.upper())
         if m:
             label_list.append({
@@ -278,7 +283,12 @@ def detect_delphi_connectors(img, gray, ocr_data):
 
     # — OCR: find DELPHI annotations —
     if TESSERACT_OK:
-        for (txt, x, y, w, h) in ocr_data:
+        for item in ocr_data:
+            # Handle both old format (txt, x, y, w, h) and new format (txt, x, y, w, h, angle, conf)
+            if len(item) >= 5:
+                txt, x, y, w, h = item[0], item[1], item[2], item[3], item[4]
+            else:
+                continue
             if 'DELPHI' in txt.upper() or 'DELPH' in txt.upper():
                 found.append({
                     'label': 'Delphi Connector',
@@ -333,134 +343,98 @@ def detect_delphi_connectors(img, gray, ocr_data):
 
 
 # ─────────────────────────────────────────────────────────────
-# 4.  Dash-dot wire detection
+# 4.  Wire detection (all wires: dash-dot, zigzag, etc.)
 # ─────────────────────────────────────────────────────────────
 
-def detect_dash_dot_wires(gray):
+def detect_wires(gray):
     """
-    Dash-dot lines appear as alternating dark dashes separated by gaps,
-    typically thin horizontal or vertical lines.
-    Strategy: Hough line detection on thin-edge image, then profile
-    each candidate line for the dash-dot pattern.
+    Detect all wires in the diagram: dash-dot, zigzag, and any other wire patterns.
+    Uses both Hough line detection and row-by-row transition scanning to capture
+    all wire types without distinguishing between them.
     """
+    wires = []
+    
+    # Method 1: Hough line detection for linear wires
     edges = cv2.Canny(gray, 50, 150, apertureSize=3)
-    # Detect long line segments
     lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=40,
                              minLineLength=30, maxLineGap=8)
-    dash_dot = []
-    if lines is None:
-        return dash_dot
-
-    for line in lines:
-        x1, y1, x2, y2 = line[0]
-        length = np.hypot(x2-x1, y2-y1)
-        if length < 30:
-            continue
-
-        # Sample pixels along the line
-        num_samples = int(length)
-        xs = np.linspace(x1, x2, num_samples).astype(int)
-        ys = np.linspace(y1, y2, num_samples).astype(int)
-        xs = np.clip(xs, 0, gray.shape[1]-1)
-        ys = np.clip(ys, 0, gray.shape[0]-1)
-        profile = gray[ys, xs]
-
-        # Binarise profile: dark pixel = 0, light = 1
-        bin_profile = (profile < 128).astype(np.uint8)
-
-        # Count run-length transitions
-        transitions = np.diff(bin_profile)
-        n_transitions = np.sum(transitions != 0)
-
-        # dash-dot: many transitions relative to length
-        # solid line: few transitions
-        density = n_transitions / max(length, 1)
-        if 0.05 < density < 0.6:
-            # Also require alternating short runs (not just random noise)
-            # Compute run lengths
-            runs = []
-            run_val = bin_profile[0]
-            run_len = 1
-            for v in bin_profile[1:]:
-                if v == run_val:
-                    run_len += 1
-                else:
-                    runs.append((run_val, run_len))
-                    run_val = v
-                    run_len = 1
-            runs.append((run_val, run_len))
-            dark_runs = [r for v, r in runs if v == 1 and r > 1]
-            if len(dark_runs) >= 1:
-                dash_dot.append({
+    if lines is not None:
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            length = np.hypot(x2-x1, y2-y1)
+            if length >= 30:
+                wires.append({
                     'p1': (x1, y1), 'p2': (x2, y2),
                     'length_px': int(length),
-                    'density': round(density, 3)
+                    'type': 'hough'
                 })
-
-    return dash_dot
-
-
-# ─────────────────────────────────────────────────────────────
-# 5.  Zigzag (ground) wire detection
-# ─────────────────────────────────────────────────────────────
-
-def detect_zigzag_wires(gray, img_h, img_w):
-    """
-    The zigzag wire (ground symbol) is ultra-dense pattern with very high transitions.
-    It occurs in bottom portion with specific x-position (margin from left edge).
-    Only catch PEAK density rows (380+ transitions), not the edge rows which are dash-dot.
-    """
-    roi_y = int(img_h * 0.85)  # Bottom ~15%
-    roi = gray[roi_y:, :]
-
-    # Look for rows with VERY high transition count (true zigzag peaks)
-    found = []
-    for r in range(roi.shape[0]):
-        row = roi[r, :]
-        bin_row = (row < 100).astype(np.uint8)
-        transitions = int(np.sum(np.diff(bin_row) != 0))
-        # STRICT: Only catch rows with 380+ transitions (the true dense zigzag)
-        # This excludes rows like 282-312 which are dash-dot variability
-        if transitions > 380:
-            y_abs = roi_y + r
-            dark_cols = np.where(bin_row == 1)[0]
-            if len(dark_cols) == 0:
-                continue
-            x_start = int(dark_cols[0])
-            x_end = int(dark_cols[-1])
-            width = x_end - x_start
-            # Must start away from left edge (zigzag doesn't touch edge)
-            if x_start > 20 and width > 60:
-                found.append({
-                    'y': y_abs,
-                    'x_start': x_start,
-                    'x_end': x_end,
-                    'transitions': transitions,
-                    'width': width
-                })
-
-    # Merge consecutive rows into single segments
-    if not found:
-        return []
-    merged = [found[0]]
-    for seg in found[1:]:
-        if seg['y'] - merged[-1]['y'] <= 8:  # Increased from 4 to 8 to merge nearby peaks
-            merged[-1]['y'] = seg['y']
-            merged[-1]['x_start'] = min(merged[-1]['x_start'], seg['x_start'])
-            merged[-1]['x_end'] = max(merged[-1]['x_end'], seg['x_end'])
-            merged[-1]['transitions'] = max(merged[-1]['transitions'], seg['transitions'])
-            merged[-1]['width'] = merged[-1]['x_end'] - merged[-1]['x_start']
-        else:
-            merged.append(seg)
-
-    # Keep only segments with very high transition count
-    result = []
-    for seg in merged:
-        width = seg['x_end'] - seg['x_start']
-        # Require 380+ transitions (only ultra-dense zigzag), 60-1000px width, x_start > 20
-        if 60 < width < 1000 and seg['transitions'] > 380 and seg['x_start'] > 20:
-            result.append(seg)
-    return result
+    
+    # Method 2: Row-by-row scanning for undulating/zigzag patterns
+    # Scan entire image for rows with significant alternation
+    for y in range(gray.shape[0]):
+        row = gray[y, :]
+        bin_row = (row < 150).astype(np.uint8)
+        dark_cols = np.where(bin_row == 1)[0]
+        
+        if len(dark_cols) == 0:
+            continue
+        
+        x_start = int(dark_cols[0])
+        x_end = int(dark_cols[-1])
+        width = x_end - x_start
+        
+        if width < 60 or x_start <= 20:
+            continue
+        
+        # Count transitions (alternation pattern)
+        transitions = np.sum(np.diff(bin_row) != 0)
+        
+        # Require minimum transitions for wire pattern
+        if transitions < 80:
+            continue
+        
+        # Check if this wire already detected by Hough (to avoid duplicates)
+        is_duplicate = False
+        for w in wires:
+            if w['type'] == 'hough':
+                p1, p2 = w['p1'], w['p2']
+                # Check if row-based detection overlaps with Hough line
+                if abs(p1[1] - y) < 5 or abs(p2[1] - y) < 5:
+                    is_duplicate = True
+                    break
+        
+        if not is_duplicate:
+            wires.append({
+                'y': y,
+                'x_start': x_start,
+                'x_end': x_end,
+                'length_px': width,
+                'transitions': transitions,
+                'type': 'row_scan'
+            })
+    
+    # Merge consecutive row-scan detections
+    merged_wires = []
+    row_scan_wires = [w for w in wires if w['type'] == 'row_scan']
+    hough_wires = [w for w in wires if w['type'] == 'hough']
+    
+    if row_scan_wires:
+        sorted_rows = sorted(row_scan_wires, key=lambda w: w['y'])
+        merged = [sorted_rows[0]]
+        for seg in sorted_rows[1:]:
+            if seg['y'] - merged[-1]['y'] <= 8:
+                merged[-1]['y'] = seg['y']
+                merged[-1]['x_start'] = min(merged[-1]['x_start'], seg['x_start'])
+                merged[-1]['x_end'] = max(merged[-1]['x_end'], seg['x_end'])
+                merged[-1]['transitions'] = max(merged[-1]['transitions'], seg['transitions'])
+                merged[-1]['length_px'] = merged[-1]['x_end'] - merged[-1]['x_start']
+            else:
+                merged.append(seg)
+        
+        merged_wires = merged
+    
+    # Return combined list: Hough lines + merged row scans
+    return hough_wires + merged_wires
 
 
 # ─────────────────────────────────────────────────────────────
@@ -470,12 +444,49 @@ def detect_zigzag_wires(gray, img_h, img_w):
 LENGTH_PATTERN = re.compile(r'^\(?\d{1,4}\)?$')   # e.g. 0, (0), 25, (25), (50), 150, 195
 LABEL_KEYWORDS = re.compile(r'(VT-|AT-|COT-|DELPHI|MLC|J\d+|X\d+|Z\d+|C\d+)', re.IGNORECASE)
 
+def score_wire_length_value(val):
+    """Score how 'reasonable' a wire length value is.
+    
+    Returns 0-100 based on:
+    - Round numbers (multiples of 25 or 50) score higher: 100
+    - Common lengths (25, 50, 75, 100, 150, 200, 250): +50
+    - Within typical range (10-300): +30
+    - Reasonable but less common: +20
+    - Outliers or suspicious (>400mm): 0
+    """
+    if val < 10 or val > 600:
+        return 0
+    
+    score = 10  # base score for in-range values
+    
+    # Prefer round multiples of 25 (25, 50, 75, 100, 125, 150, ...)
+    if val % 25 == 0:
+        score += 40
+    # Prefer multiples of 10
+    elif val % 10 == 0:
+        score += 20
+    
+    # Prefer common automotive lengths (most wires are under 300mm)
+    common_lengths = {25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 300}
+    if val in common_lengths:
+        score += 40
+    
+    # Prefer typical range (10-300mm is most common in automotive)
+    if 10 <= val <= 300:
+        score += 20
+    
+    return min(score, 100)
+
+
 def detect_wire_lengths(ocr_data, tapes=None, connectors=None):
     """Extract numeric wire-length annotations from OCR data.
     
     Accepts both horizontal, vertical, and angled text (parenthesized or not).
     Filters out any lengths that overlap with tape labels, connector bounding boxes, or label text.
-    Aggressively deduplicates multi-angle detections to avoid counting same length multiple times.
+    Smartly deduplicates multi-angle detections by:
+      1. Grouping by proximity
+      2. Picking best detection using: confidence (3x) + value reasonableness score (2x) + angle score
+      3. Preferring round, typical automotive lengths (25, 50, 100, 150, 200mm)
     Filters: parenthesized values 0-600, non-parenthesized values 10-600mm.
     """
     if tapes is None:
@@ -485,12 +496,23 @@ def detect_wire_lengths(ocr_data, tapes=None, connectors=None):
     
     # Build map of label text positions for filtering
     label_positions = []
-    for (txt, x, y, w, h) in ocr_data:
-        if LABEL_KEYWORDS.search(txt):
-            label_positions.append((x, y, w, h))
+    for item in ocr_data:
+        # Handle both old format (txt, x, y, w, h) and new format (txt, x, y, w, h, angle, conf)
+        if len(item) >= 5:
+            txt = item[0]
+            if LABEL_KEYWORDS.search(txt):
+                label_positions.append(item[1:5])
     
     candidates = []
-    for (txt, x, y, w, h) in ocr_data:
+    for item in ocr_data:
+        # Handle both old format (txt, x, y, w, h) and new format (txt, x, y, w, h, angle, conf)
+        if len(item) >= 5:
+            txt, x, y, w, h = item[0], item[1], item[2], item[3], item[4]
+            angle = item[5] if len(item) > 5 else 0
+            conf = item[6] if len(item) > 6 else 50
+        else:
+            continue
+            
         clean = txt.strip().replace(' ', '')
         if LENGTH_PATTERN.match(clean):
             val = int(re.sub(r'[^\d]', '', clean))
@@ -540,10 +562,20 @@ def detect_wire_lengths(ocr_data, tapes=None, connectors=None):
                     candidates.append({
                         'value': val,
                         'bbox': (x, y, w, h),
-                        'is_parenthesized': is_parenthesized
+                        'is_parenthesized': is_parenthesized,
+                        'angle': angle,
+                        'conf': conf
                     })
     
-    # Stricter deduplication: merge only VERY close detections of same value
+    
+    # Debug: Show all "100" candidates before deduplication
+    debug_mode = any(c['value'] == 100 for c in candidates)
+    
+    # Define common automotive lengths (used for intelligent deduplication)
+    common_lengths = {25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 300}  # max 300mm for automotive
+    
+    # Smart deduplication: cluster by PROXIMITY first (catches OCR misreadings),
+    # then pick best value within each cluster
     lengths = []
     used = set()
     for i, cand in enumerate(candidates):
@@ -553,14 +585,52 @@ def detect_wire_lengths(ocr_data, tapes=None, connectors=None):
         cluster_indices = [i]
         cluster_x, cluster_y = cand['bbox'][0], cand['bbox'][1]
         
-        # Find all VERY nearby detections of same value (within 25px, stricter)
+        # Find ALL nearby detections within 60px (regardless of value)
+        # This catches cases where OCR misreads "175" as "25" at different angles
         for j in range(i + 1, len(candidates)):
-            if j not in used and candidates[j]['value'] == cand['value']:
+            if j not in used:
                 x2, y2 = candidates[j]['bbox'][0], candidates[j]['bbox'][1]
                 dist = ((cluster_x - x2) ** 2 + (cluster_y - y2) ** 2) ** 0.5
-                if dist < 25:  # Stricter threshold to avoid false merges
+                if dist < 60:  # Physical proximity threshold (catches misreadings)
+                    if (cand['value'] == 100 or candidates[j]['value'] == 100) and debug_mode:
+                        print(f"    Clustering candidate #{i} (val={cand['value']}) with #{j} (val={candidates[j]['value']}) at dist={dist:.1f}px")
                     cluster_indices.append(j)
                     used.add(j)
+        
+        # Pick best detection from cluster:
+        # 1. Values in common_lengths get massive boost (STRONGLY prefer legitimate automotive lengths)
+        # 2. Highest confidence (3x weight)
+        # 3. Value reasonableness (2x weight) - prefer round numbers, common lengths
+        # 4. Angle closest to 0° or 90° (1x weight)
+        best_idx = i
+        best_score = -1
+        
+        for idx in cluster_indices:
+            cand_item = candidates[idx]
+            conf = cand_item['conf']
+            val = cand_item['value']
+            angle = cand_item['angle']
+            
+            # HUGE boost for values in common_lengths (catches "100" over "400" misreadings)
+            in_common = 10000 if val in common_lengths else 0
+            
+            # Score value reasonableness (0-100): round numbers, common lengths preferred
+            val_score = score_wire_length_value(val)
+            
+            # Normalize angle: 0-180 (0° and 180° are same horizontal), 90° is vertical
+            norm_angle = min(angle % 180, 180 - (angle % 180))
+            # Prefer angles closer to cardinal directions (0°, 90°)
+            angle_score = 100 - min(norm_angle, 90 - abs(norm_angle - 90))
+            
+            # Combined score: common_lengths boost + confidence (3x) + value reasonableness (2x) + angle (1x)
+            total_score = in_common + conf * 3 + val_score * 2 + angle_score
+            
+            if total_score > best_score:
+                best_score = total_score
+                best_idx = idx
+        
+        # Use best detection from cluster
+        best_cand = candidates[best_idx]
         
         # Use median position of cluster (more robust than average)
         xs = sorted([candidates[idx]['bbox'][0] for idx in cluster_indices])
@@ -569,10 +639,32 @@ def detect_wire_lengths(ocr_data, tapes=None, connectors=None):
         avg_y = ys[len(ys)//2]
         
         lengths.append({
-            'value': cand['value'],
-            'bbox': (avg_x, avg_y, cand['bbox'][2], cand['bbox'][3]),
-            'is_parenthesized': cand['is_parenthesized']
+            'value': best_cand['value'],  # Use value from best-confidence detection
+            'bbox': (avg_x, avg_y, best_cand['bbox'][2], best_cand['bbox'][3]),
+            'is_parenthesized': best_cand['is_parenthesized']
         })
+    
+    # Filter outliers: remove values that deviate significantly from the median
+    # (catches OCR misreadings that are isolated)
+    if lengths:
+        values = [l['value'] for l in lengths]
+        median_val = sorted(values)[len(values)//2]
+        
+        # Keep lengths that are within reasonable range of median
+        filtered_lengths = []
+        
+        for ln in lengths:
+            val = ln['value']
+            # Keep if: 
+            # 1. Within 1.5x median (tight tolerance)
+            # 2. OR is a common automotive length (<=300mm)
+            # 3. OR is parenthesized (clearly marked dimensions)
+            if (val <= median_val * 1.5 or 
+                val in common_lengths or 
+                ln['is_parenthesized']):
+                filtered_lengths.append(ln)
+        
+        lengths = filtered_lengths
     
     return lengths
 
@@ -634,9 +726,9 @@ def detect_blue_clips(img, gray):
 # 8.  Build connectivity list  (heuristic based on positions)
 # ─────────────────────────────────────────────────────────────
 
-def build_connectivity_graph(tape_labels, connectors, clips, dash_dot_wires, lengths, img_shape):
+def build_connectivity_graph(tape_labels, connectors, clips, wires, lengths, img_shape):
     """
-    Build a connectivity graph by tracing dash-dot wire segments.
+    Build a connectivity graph by tracing wire segments.
     
     Strategy:
     1. For each dash-dot segment, find which tape labels are on it
@@ -670,10 +762,13 @@ def build_connectivity_graph(tape_labels, connectors, clips, dash_dot_wires, len
             'type': 'clip'
         }
     
-    # For each dash-dot segment, find which tapes are on it
+    # For each wire segment, find which tapes are on it
     segment_tapes = {}  # segment_idx -> list of tape info
     
-    for seg_idx, seg in enumerate(dash_dot_wires):
+    # Filter to only Hough-detected wires (with 'p1' and 'p2' endpoints)
+    hough_wires = [w for w in wires if w['type'] == 'hough']
+    
+    for seg_idx, seg in enumerate(hough_wires):
         p1 = np.array(seg['p1'])
         p2 = np.array(seg['p2'])
         seg_vec = p2 - p1
@@ -723,10 +818,10 @@ def build_connectivity_graph(tape_labels, connectors, clips, dash_dot_wires, len
             return nearest
         return None
     
-    # Build edges from segments
+    # Build edges from wire segments
     edges = []
     
-    for seg_idx, seg in enumerate(dash_dot_wires):
+    for seg_idx, seg in enumerate(hough_wires):
         if seg_idx not in segment_tapes:
             continue
         
@@ -792,7 +887,7 @@ def classify_wire(label):
 # 9.  Annotate and save result
 # ─────────────────────────────────────────────────────────────
 
-def annotate(img, tapes, connectors, dash_dot_wires, zigzag_wires,
+def annotate(img, tapes, connectors, wires,
              lengths, clips, connectivity):
     canvas = img.copy()
     H, W = canvas.shape[:2]
@@ -812,18 +907,15 @@ def annotate(img, tapes, connectors, dash_dot_wires, zigzag_wires,
         draw_label(canvas, f"[CONN] C{i+1}", (x, max(y-5, 10)),
                    (255, 140, 0), scale=0.42)
 
-    # — Dash-dot wires —
-    for dd in dash_dot_wires[:30]:   # limit to first 30 for clarity
-        p1, p2 = dd['p1'], dd['p2']
-        cv2.line(canvas, p1, p2, (0, 220, 255), 1)
-
-    # — Zigzag wires —
-    for zz in zigzag_wires:
-        y_z = zz['y']
-        x0, x1 = zz['x_start'], zz['x_end']
-        cv2.line(canvas, (x0, y_z), (x1, y_z), (200, 50, 200), 3)
-        draw_label(canvas, '[ZIGZAG/GND]', (x0, y_z - 8),
-                   (200, 50, 200), scale=0.42)
+    # — All wires (unified: hough lines + row scans) —
+    for wire in wires[:50]:   # limit to first 50 for clarity
+        if wire['type'] == 'hough':
+            p1, p2 = wire['p1'], wire['p2']
+            cv2.line(canvas, p1, p2, (0, 220, 255), 1)
+        elif wire['type'] == 'row_scan':
+            y_w = wire['y']
+            x0, x1 = wire['x_start'], wire['x_end']
+            cv2.line(canvas, (x0, y_w), (x1, y_w), (0, 220, 255), 2)
 
     # — Wire lengths —
     for ln in lengths:
@@ -863,8 +955,7 @@ def annotate(img, tapes, connectors, dash_dot_wires, zigzag_wires,
     legends = [
         ('[TAPE]  Tape / conduit label', (0, 200, 0)),
         ('[CONN]  Delphi connector',      (255, 140, 0)),
-        ('[DASH]  Dash-dot centre wire',  (0, 220, 255)),
-        ('[ZIGZAG] Ground zigzag wire',  (200, 50, 200)),
+        ('[WIRE]  Detected wires',        (0, 220, 255)),
         ('[LEN]   Wire length (mm)',      (0, 180, 255)),
         ('[CLIP]  Blue circular clip',    (255, 80, 0)),
     ]
@@ -881,7 +972,7 @@ def annotate(img, tapes, connectors, dash_dot_wires, zigzag_wires,
 # 10.  Print connectivity report
 # ─────────────────────────────────────────────────────────────
 
-def print_report(tapes, connectors, dash_dot_wires, zigzag_wires,
+def print_report(tapes, connectors, wires,
                  lengths, clips, connectivity_graph):
     SEP = '=' * 72
 
@@ -899,32 +990,29 @@ def print_report(tapes, connectors, dash_dot_wires, zigzag_wires,
         x, y, w, h = c['bbox']
         print(f"    C{i+1}: {c['label']:<20}  at ({x},{y}) – {c.get('note','')}")
 
-    print(f'\n[3] DASH-DOT WIRES  ({len(dash_dot_wires)} segments detected)')
-    for i, dd in enumerate(dash_dot_wires[:15]):
-        print(f"    seg {i+1:02d}: {dd['p1']} → {dd['p2']}  "
-              f"len={dd['length_px']}px  density={dd['density']}")
-    if len(dash_dot_wires) > 15:
-        print(f"    … and {len(dash_dot_wires)-15} more")
+    print(f'\n[3] WIRES  ({len(wires)} segments detected)')
+    for i, wire in enumerate(wires[:15]):
+        if wire['type'] == 'hough':
+            print(f"    seg {i+1:02d}: {wire['p1']} → {wire['p2']}  len={wire['length_px']}px")
+        elif wire['type'] == 'row_scan':
+            print(f"    seg {i+1:02d}: y={wire['y']}  x={wire['x_start']}–{wire['x_end']}  "
+                  f"width={wire['length_px']}px  transitions={wire['transitions']}")
+    if len(wires) > 15:
+        print(f"    … and {len(wires)-15} more")
 
-    print(f'\n[4] ZIGZAG / GROUND WIRES  ({len(zigzag_wires)} found)')
-    for zz in zigzag_wires:
-        span = zz['x_end'] - zz['x_start']
-        print(f"    y={zz['y']}  x={zz['x_start']}–{zz['x_end']}  "
-              f"width={span}px  transitions={zz['transitions']}")
-
-    print(f'\n[5] WIRE LENGTH ANNOTATIONS  ({len(lengths)} found)')
+    print(f'\n[4] WIRE LENGTH ANNOTATIONS  ({len(lengths)} found)')
     for ln in lengths:
         x, y, w, h = ln['bbox']
         x, y = int(round(x)), int(round(y))
         paren_indicator = ' (parenthesized)' if ln.get('is_parenthesized') else ''
         print(f"    {ln['value']} mm  at ({x},{y}){paren_indicator}")
 
-    print(f'\n[6] BLUE CIRCULAR CLIPS  ({len(clips)} found)')
+    print(f'\n[5] BLUE CIRCULAR CLIPS  ({len(clips)} found)')
     for i, clip in enumerate(clips):
         print(f"    Clip {i+1}: centre={clip['center']}  r={clip['radius']}px")
 
     # ── New graph-based connectivity report ──
-    print(f'\n[7] CONNECTIVITY GRAPH')
+    print(f'\n[6] CONNECTIVITY GRAPH')
     print(f'    Nodes ({len(connectivity_graph["nodes"])} found):')
     for nid, ninfo in connectivity_graph['nodes'].items():
         print(f"      {nid:<15} at ({ninfo['x']},{ninfo['y']}) – {ninfo['label']}")
@@ -987,13 +1075,9 @@ def main(image_path='/mnt/user-data/uploads/1774639661620_image.png'):
     connectors = detect_delphi_connectors(img, gray, ocr_data)
     print(f"  {len(connectors)} connectors")
 
-    print("Detecting dash-dot wires …")
-    dash_dot_wires = detect_dash_dot_wires(gray)
-    print(f"  {len(dash_dot_wires)} dash-dot segments")
-
-    print("Detecting zigzag wires …")
-    zigzag_wires = detect_zigzag_wires(gray, H, W)
-    print(f"  {len(zigzag_wires)} zigzag segments")
+    print("Detecting wires …")
+    wires = detect_wires(gray)
+    print(f"  {len(wires)} wire segments")
 
     print("Detecting wire-length annotations …")
     lengths = detect_wire_lengths(ocr_data, tapes, connectors)
@@ -1005,11 +1089,18 @@ def main(image_path='/mnt/user-data/uploads/1774639661620_image.png'):
 
     print("Building connectivity list …")
     connectivity_graph = build_connectivity_graph(tapes, connectors, clips, 
-                                                 dash_dot_wires, lengths, img.shape)
+                                                 wires, lengths, img.shape)
 
     # ── Report ──
-    print_report(tapes, connectors, dash_dot_wires, zigzag_wires,
+    print_report(tapes, connectors, wires,
                  lengths, clips, connectivity_graph)
+
+    # ── Annotated image ──
+    annotated = annotate(img, tapes, connectors, wires,
+                        lengths, clips, connectivity_graph)
+    output_image_path = os.path.join(os.path.dirname(path) or '.', 'wiring_diagram_annotated.png')
+    cv2.imwrite(output_image_path, annotated)
+    print(f"\nAnnotated image saved: {output_image_path}")
 
     # ── Save connectivity graph as JSON ──
     import json
@@ -1047,17 +1138,10 @@ def main(image_path='/mnt/user-data/uploads/1774639661620_image.png'):
             for e in connectivity_graph['edges']
         ]
     }
-    json_path = '/home/vyomesh/trial/connectivity_graph.json'
+    json_path = 'connectivity_graph.json'
     with open(json_path, 'w') as f:
         json.dump(json_output, f, indent=2)
     print(f"Connectivity graph saved → {json_path}")
-
-    # ── Annotate & save ──
-    annotated = annotate(img, tapes, connectors, dash_dot_wires,
-                         zigzag_wires, lengths, clips, connectivity_graph)
-    out_path = '/home/vyomesh/trial/wiring_diagram_annotated.png'
-    cv2.imwrite(out_path, annotated)
-    print(f"Annotated image saved → {out_path}")
 
     return annotated
 
