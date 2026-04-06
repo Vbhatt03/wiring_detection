@@ -155,12 +155,24 @@ TAPE_PATTERNS = re.compile(
     r'\b(VT-WH|VT-BK|VT-PK|AT-BK|MLC\w+)\b', re.IGNORECASE)
 
 TAPE_COLOR_BGR = {
-    'VT-WH':  (200, 200,  50),   # cyan-ish
-    'VT-BK':  (  0,   0, 220),   # red
-    'VT-PK':  (220,  50, 220),   # magenta
-    'AT-BK':  ( 50, 180, 220),   # orange
-    'COT-BK': ( 50, 220, 100),   # green
-    'DEFAULT':(  0, 180, 180),
+    'VT-WH':  (  0,   0, 180),   # dark red
+    'VT-BK':  (  0,   0, 180),   # dark red
+    'VT-PK':  (  0,   0, 180),   # dark red
+    'AT-BK':  (  0,   0, 180),   # dark red
+    'COT-BK': (  0,   0, 180),   # dark red
+    'DEFAULT':(  0,   0, 180),   # dark red
+}
+
+# ─────────────────────────────────────────────────────────────
+# 0b. Extract filters (specify which elements to extract)
+# ─────────────────────────────────────────────────────────────
+
+EXTRACT_FILTERS = {
+    'tapes': True,          # Extract tape/conduit labels
+    'connectors': True,     # Extract Delphi connectors
+    'wires': True,          # Extract wire segments
+    'lengths': True,        # Extract wire-length annotations
+    'clips': True,          # Extract blue circular clips
 }
 
 def detect_tape_labels(img, gray, ocr_data):
@@ -888,82 +900,96 @@ def classify_wire(label):
 # ─────────────────────────────────────────────────────────────
 
 def annotate(img, tapes, connectors, wires,
-             lengths, clips, connectivity):
+             lengths, clips, connectivity, filters=None):
+    if filters is None:
+        filters = EXTRACT_FILTERS
+    
     canvas = img.copy()
     H, W = canvas.shape[:2]
 
     # — Tape labels —
-    for item in tapes:
-        x, y, w, h = item['bbox']
-        lbl = item['label']
-        color = TAPE_COLOR_BGR.get(lbl, TAPE_COLOR_BGR['DEFAULT'])
-        cv2.rectangle(canvas, (x, y), (x+w, y+h), color, 2)
-        draw_label(canvas, f"[TAPE] {lbl}", (x, max(y-5, 10)), color, scale=0.45)
+    if filters.get('tapes', True):
+        for item in tapes:
+            x, y, w, h = item['bbox']
+            lbl = item['label']
+            color = TAPE_COLOR_BGR.get(lbl, TAPE_COLOR_BGR['DEFAULT'])
+            cv2.rectangle(canvas, (x, y), (x+w, y+h), color, 2)
+            draw_label(canvas, f"[TAPE] {lbl}", (x, max(y-5, 10)), color, scale=0.45)
 
     # — Connectors —
-    for i, conn in enumerate(connectors):
-        x, y, w, h = conn['bbox']
-        cv2.rectangle(canvas, (x, y), (x+w, y+h), (255, 140, 0), 2)
-        draw_label(canvas, f"[CONN] C{i+1}", (x, max(y-5, 10)),
-                   (255, 140, 0), scale=0.42)
+    if filters.get('connectors', True):
+        for i, conn in enumerate(connectors):
+            x, y, w, h = conn['bbox']
+            cv2.rectangle(canvas, (x, y), (x+w, y+h), (0, 0, 180), 2)
+            draw_label(canvas, f"[CONN] C{i+1}", (x, max(y-5, 10)),
+                       (0, 0, 180), scale=0.42)
 
     # — All wires (unified: hough lines + row scans) —
-    for wire in wires[:50]:   # limit to first 50 for clarity
-        if wire['type'] == 'hough':
-            p1, p2 = wire['p1'], wire['p2']
-            cv2.line(canvas, p1, p2, (0, 220, 255), 1)
-        elif wire['type'] == 'row_scan':
-            y_w = wire['y']
-            x0, x1 = wire['x_start'], wire['x_end']
-            cv2.line(canvas, (x0, y_w), (x1, y_w), (0, 220, 255), 2)
+    if filters.get('wires', True):
+        for wire in wires[:50]:   # limit to first 50 for clarity
+            if wire['type'] == 'hough':
+                p1, p2 = wire['p1'], wire['p2']
+                cv2.line(canvas, p1, p2, (0, 128, 0), 1)
+            elif wire['type'] == 'row_scan':
+                y_w = wire['y']
+                x0, x1 = wire['x_start'], wire['x_end']
+                cv2.line(canvas, (x0, y_w), (x1, y_w), (0, 128, 0), 2)
 
     # — Wire lengths —
-    for ln in lengths:
-        x, y, w, h = ln['bbox']
-        x, y, w, h = int(round(x)), int(round(y)), int(round(w)), int(round(h))
-        # Draw rectangle around detected length
-        cv2.rectangle(canvas, (x-2, y-2), (x+w+2, y+h+2), (0, 180, 255), 1)
-        
-        # Intelligently position text: prefer below, but adjust if near edges
-        text_x = x - 5
-        text_y = y + h + 12
-        
-        # Check if text would go off bottom; if so, place above
-        if text_y + 15 > H:
-            text_y = y - 8
-        
-        # Check if text would go off right; if so, shift left
-        if text_x + 40 > W:
-            text_x = max(5, W - 45)
-        
-        # Draw value only (no "mm" unit to reduce clutter)
-        # Show parentheses if the value was parenthesized in original
-        value_str = f"({ln['value']})" if ln.get('is_parenthesized') else str(ln['value'])
-        draw_label(canvas, value_str, (text_x, text_y),
-                   (0, 180, 255), scale=0.40, thickness=1)
+    if filters.get('lengths', True):
+        for ln in lengths:
+            x, y, w, h = ln['bbox']
+            x, y, w, h = int(round(x)), int(round(y)), int(round(w)), int(round(h))
+            # Draw rectangle around detected length
+            cv2.rectangle(canvas, (x-2, y-2), (x+w+2, y+h+2), (0, 0, 180), 1)
+            
+            # Intelligently position text: prefer below, but adjust if near edges
+            text_x = x - 5
+            text_y = y + h + 12
+            
+            # Check if text would go off bottom; if so, place above
+            if text_y + 15 > H:
+                text_y = y - 8
+            
+            # Check if text would go off right; if so, shift left
+            if text_x + 40 > W:
+                text_x = max(5, W - 45)
+            
+            # Draw value only (no "mm" unit to reduce clutter)
+            # Show parentheses if the value was parenthesized in original
+            value_str = f"({ln['value']})" if ln.get('is_parenthesized') else str(ln['value'])
+            draw_label(canvas, value_str, (text_x, text_y),
+                       (0, 0, 180), scale=0.40, thickness=1)
 
     # — Blue clips —
-    for clip in clips:
-        cx, cy = clip['center']
-        cx, cy = int(round(cx)), int(round(cy))
-        r = clip['radius']
-        cv2.circle(canvas, (cx, cy), r + 3, (255, 80, 0), 2)
-        draw_label(canvas, '[CLIP]', (cx - 10, cy - r - 5),
-                   (255, 80, 0), scale=0.42)
+    if filters.get('clips', True):
+        for clip in clips:
+            cx, cy = clip['center']
+            cx, cy = int(round(cx)), int(round(cy))
+            r = clip['radius']
+            cv2.circle(canvas, (cx, cy), r + 3, (0, 0, 180), 2)
+            draw_label(canvas, '[CLIP]', (cx - 10, cy - r - 5),
+                       (0, 0, 180), scale=0.42)
 
     # — Legend box in top-right —
-    legends = [
-        ('[TAPE]  Tape / conduit label', (0, 200, 0)),
-        ('[CONN]  Delphi connector',      (255, 140, 0)),
-        ('[WIRE]  Detected wires',        (0, 220, 255)),
-        ('[LEN]   Wire length (mm)',      (0, 180, 255)),
-        ('[CLIP]  Blue circular clip',    (255, 80, 0)),
-    ]
-    lx, ly = W - 320, 10
-    cv2.rectangle(canvas, (lx-5, ly-5), (W-5, ly + len(legends)*20 + 5),
-                  (30, 30, 30), -1)
-    for i, (txt, col) in enumerate(legends):
-        draw_label(canvas, txt, (lx, ly + i*20 + 15), col, scale=0.38, thickness=1)
+    legends = []
+    if filters.get('tapes', True):
+        legends.append(('[TAPE]  Tape / conduit label', (0, 0, 180)))
+    if filters.get('connectors', True):
+        legends.append(('[CONN]  Delphi connector',      (0, 0, 180)))
+    if filters.get('wires', True):
+        legends.append(('[WIRE]  Detected wires',        (0, 128, 0)))
+    if filters.get('lengths', True):
+        legends.append(('[LEN]   Wire length (mm)',      (0, 0, 180)))
+    if filters.get('clips', True):
+        legends.append(('[CLIP]  Blue circular clip',    (0, 0, 180)))
+    
+    if legends:
+        lx, ly = W - 320, 10
+        cv2.rectangle(canvas, (lx-5, ly-5), (W-5, ly + len(legends)*20 + 5),
+                      (30, 30, 30), -1)
+        for i, (txt, col) in enumerate(legends):
+            draw_label(canvas, txt, (lx, ly + i*20 + 15), col, scale=0.38, thickness=1)
 
     return canvas
 
@@ -1051,41 +1077,141 @@ def print_report(tapes, connectors, wires,
 
 
 # ─────────────────────────────────────────────────────────────
+# 12.  Generate verification table for extracted data
+# ─────────────────────────────────────────────────────────────
+
+def generate_verification_table(lengths, ocr_data, title="Wire Length Extraction Verification"):
+    """
+    Generate a manual verification table for extracted wire lengths.
+    Shows: what text was detected → what value was extracted → verification status
+    """
+    print()
+    print('  ' + '='*90)
+    print(f'  {title}')
+    print('  ' + '='*90)
+    
+    if not lengths:
+        print("  [No wire lengths extracted]")
+        return
+    
+    # Build lookup of all numeric text from OCR
+    numeric_ocr = []
+    for item in ocr_data:
+        if len(item) >= 5:
+            txt, x, y, w, h = item[0], item[1], item[2], item[3], item[4]
+            clean = txt.strip().replace(' ', '')
+            # Check if it's a number (possibly parenthesized)
+            if re.match(r'^\(?\d+\)?$', clean):
+                val = int(re.sub(r'[^\d]', '', clean))
+                numeric_ocr.append({
+                    'text': txt,
+                    'value': val,
+                    'position': (int(round(x)), int(round(y))),
+                    'extracted': False
+                })
+    
+    # Mark which OCR detections were actually extracted
+    for ln in lengths:
+        x, y, w, h = ln['bbox']
+        cx, cy = int(round(x + w/2)), int(round(y + h/2))
+        # Find closest OCR detection
+        for ocr_item in numeric_ocr:
+            ox, oy = ocr_item['position']
+            if abs(cx - ox) < 20 and abs(cy - oy) < 20:
+                ocr_item['extracted'] = True
+                ocr_item['extracted_value'] = ln['value']
+                break
+    
+    # Print table
+    print(f"\n  {'#':<3} {'OCR Text':<15} {'Position':<15} {'Extracted':<12} {'Status':<20} {'Notes':<20}")
+    print('  ' + '-'*90)
+    
+    row_num = 1
+    for ocr_item in numeric_ocr:
+        text = ocr_item['text']
+        x, y = ocr_item['position']
+        extracted = '✓ ' + str(ocr_item.get('extracted_value', '')) if ocr_item['extracted'] else '✗'
+        status = 'EXTRACTED' if ocr_item['extracted'] else 'NOT EXTRACTED'
+        
+        # Add notes for non-extracted items
+        notes = ""
+        if not ocr_item['extracted']:
+            # Could be due to various reasons: overlapping with labels, outlier, etc.
+            notes = "(filtered out)"
+        
+        pos_str = f"({x}, {y})"
+        print(f"  {row_num:<3} {text:<15} {pos_str:<15} {extracted:<12} {status:<20} {notes:<20}")
+        row_num += 1
+    
+    # Summary statistics
+    extracted_count = sum(1 for item in numeric_ocr if item['extracted'])
+    total_count = len(numeric_ocr)
+    
+    print('  ' + '-'*90)
+    print(f"  Summary: {extracted_count} extracted out of {total_count} detected numeric values")
+    print(f"  Extraction rate: {100*extracted_count//total_count if total_count > 0 else 0}%")
+    print('  ' + '='*90)
+    print()
+
+
+# ─────────────────────────────────────────────────────────────
 # 11.  Main
 # ─────────────────────────────────────────────────────────────
 
-def main(image_path='/mnt/user-data/uploads/1774639661620_image.png'):
+def main(image_path='/mnt/user-data/uploads/1774639661620_image.png', extract_filters=None):
+    """
+    Main detection pipeline.
+    
+    Args:
+        image_path: Path to the wiring diagram image
+        extract_filters: Dict with keys 'tapes', 'connectors', 'wires', 'lengths', 'clips'
+                        Set to False to skip extraction. Default: extract all.
+    """
+    if extract_filters is None:
+        extract_filters = EXTRACT_FILTERS.copy()
+    
     print(f"Loading: {image_path}")
     img  = load(image_path)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     H, W = img.shape[:2]
     print(f"Image size: {W}×{H}")
+    print(f"Extract filters: {extract_filters}")
 
     # ── OCR once, share results ──
     print("Running OCR …")
     ocr_data = ocr_full(gray)
     print(f"  {len(ocr_data)} text tokens found")
 
-    # ── Detect each element ──
-    print("Detecting tape labels …")
-    tapes = detect_tape_labels(img, gray, ocr_data)
-    print(f"  {len(tapes)} tape labels")
+    # ── Detect each element (respecting filters) ──
+    tapes = []
+    if extract_filters.get('tapes', True):
+        print("Detecting tape labels …")
+        tapes = detect_tape_labels(img, gray, ocr_data)
+        print(f"  {len(tapes)} tape labels")
 
-    print("Detecting Delphi connectors …")
-    connectors = detect_delphi_connectors(img, gray, ocr_data)
-    print(f"  {len(connectors)} connectors")
+    connectors = []
+    if extract_filters.get('connectors', True):
+        print("Detecting Delphi connectors …")
+        connectors = detect_delphi_connectors(img, gray, ocr_data)
+        print(f"  {len(connectors)} connectors")
 
-    print("Detecting wires …")
-    wires = detect_wires(gray)
-    print(f"  {len(wires)} wire segments")
+    wires = []
+    if extract_filters.get('wires', True):
+        print("Detecting wires …")
+        wires = detect_wires(gray)
+        print(f"  {len(wires)} wire segments")
 
-    print("Detecting wire-length annotations …")
-    lengths = detect_wire_lengths(ocr_data, tapes, connectors)
-    print(f"  {len(lengths)} length annotations")
+    lengths = []
+    if extract_filters.get('lengths', True):
+        print("Detecting wire-length annotations …")
+        lengths = detect_wire_lengths(ocr_data, tapes, connectors)
+        print(f"  {len(lengths)} length annotations")
 
-    print("Detecting blue clips …")
-    clips = detect_blue_clips(img, gray)
-    print(f"  {len(clips)} blue clips")
+    clips = []
+    if extract_filters.get('clips', True):
+        print("Detecting blue clips …")
+        clips = detect_blue_clips(img, gray)
+        print(f"  {len(clips)} blue clips")
 
     print("Building connectivity list …")
     connectivity_graph = build_connectivity_graph(tapes, connectors, clips, 
@@ -1095,10 +1221,15 @@ def main(image_path='/mnt/user-data/uploads/1774639661620_image.png'):
     print_report(tapes, connectors, wires,
                  lengths, clips, connectivity_graph)
 
+    # ── Verification table for lengths ──
+    if extract_filters.get('lengths', True):
+        generate_verification_table(lengths, ocr_data, 
+                                   title="Wire Length Extraction Verification")
+
     # ── Annotated image ──
     annotated = annotate(img, tapes, connectors, wires,
-                        lengths, clips, connectivity_graph)
-    output_image_path = os.path.join(os.path.dirname(path) or '.', 'wiring_diagram_annotated.png')
+                        lengths, clips, connectivity_graph, extract_filters)
+    output_image_path = os.path.join(os.path.dirname(image_path) or '.', 'wiring_diagram_annotated.png')
     cv2.imwrite(output_image_path, annotated)
     print(f"\nAnnotated image saved: {output_image_path}")
 
@@ -1147,6 +1278,19 @@ def main(image_path='/mnt/user-data/uploads/1774639661620_image.png'):
 
 
 if __name__ == '__main__':
-    path = sys.argv[1] if len(sys.argv) > 1 else '/mnt/user-data/uploads/1774639661620_image.png'
-    result = main(path)
+    image_path = sys.argv[1] if len(sys.argv) > 1 else '/mnt/user-data/uploads/1774639661620_image.png'
+    
+    # Parse optional filter arguments: --extract-only=lengths,tapes or --skip=clips
+    extract_filters = EXTRACT_FILTERS.copy()
+    
+    for arg in sys.argv[2:]:
+        if arg.startswith('--extract-only='):
+            items = arg.split('=')[1].split(',')
+            extract_filters = {k: k in items for k in extract_filters.keys()}
+        elif arg.startswith('--skip='):
+            items = arg.split('=')[1].split(',')
+            for item in items:
+                extract_filters[item] = False
+    
+    result = main(image_path, extract_filters)
     # show("Wiring Diagram – Detected Elements", result)  # Disabled to avoid Qt display issues in headless mode
