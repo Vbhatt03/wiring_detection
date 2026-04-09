@@ -1247,6 +1247,8 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
             'label': f"Z2-TH{i+1}",
             'type': 'clip'
         }
+        
+    
     
     # ═══ Extract junction/intermediate points from OCR data ═══
     # Accept J\d+ (junctions) and MLC\w+ (conduit branches)
@@ -1658,6 +1660,32 @@ def build_component_nodes(connectors, clips, ocr_data, tapes):
             'label': f"Z2-TH{i+1}",
             'type': 'clip',
         }
+    # Add tape labels as graph nodes.
+    # Duplicate labels are numbered top-to-bottom within each label group.
+    tape_counts = {}
+    sorted_tapes = sorted(
+        tapes,
+        key=lambda tape: (
+            tape['label'].upper(),
+            tape['bbox'][1] + tape['bbox'][3] // 2,
+            tape['bbox'][0] + tape['bbox'][2] // 2,
+        ),
+    )
+
+    for tape in sorted_tapes:
+        bx, by, bw, bh = tape['bbox']
+        cx, cy = bx + bw // 2, by + bh // 2
+        label = tape['label'].upper()
+
+        tape_counts[label] = tape_counts.get(label, 0) + 1
+        node_id = f"Tape-{label}-{tape_counts[label]}"
+
+        nodes_dict[node_id] = {
+            'x': cx,
+            'y': cy,
+            'label': tape['label'],
+            'type': 'tape'
+        }
 
     junction_pattern = re.compile(r'^(J\d+|MLC\w+)$', re.IGNORECASE)
     for item in ocr_data:
@@ -1676,24 +1704,6 @@ def build_component_nodes(connectors, clips, ocr_data, tapes):
             'type': 'junction',
         }
 
-    # Synthesize C2 when only AT-BK branch is visible but connector body is not detected.
-    connector_ids = [nid for nid, n in nodes_dict.items() if n['type'] == 'connector']
-    for tape in tapes:
-        if tape['label'].upper() != 'AT-BK':
-            continue
-        tbx, tby, tbw, tbh = tape['bbox']
-        tcx, tcy = int(tbx + tbw // 2), int(tby + tbh // 2)
-        nearby = any(
-            ((nodes_dict[nid]['x'] - tcx) ** 2 + (nodes_dict[nid]['y'] - tcy) ** 2) ** 0.5 < 200
-            for nid in connector_ids
-        )
-        if (not nearby) and ('C2' not in nodes_dict):
-            nodes_dict['C2'] = {
-                'x': max(0, tcx - 80),
-                'y': tcy,
-                'label': 'C2',
-                'type': 'connector',
-            }
 
     return nodes_dict
 
@@ -1821,6 +1831,8 @@ def map_components_to_graph(skeleton_graph, components_dict, max_snap_distance=1
             snap_limit = min(max_snap_distance, 100)
         elif comp_type == 'connector':
             snap_limit = min(max_snap_distance, 160)
+        elif comp_type == 'tape':
+            snap_limit = min(max_snap_distance, 80)
         elif comp_type == 'junction':
             snap_limit = max(max_snap_distance, 200)
         else:
