@@ -556,7 +556,7 @@ def detect_wires(gray):
     
     # Build endpoint graph: connect endpoints that should be merged
     GAP_THRESH = 100  # px — allow very long gaps in dashed/segmented wires
-    ANGLE_THRESH = 120  # degrees — allow wide angle variations
+    ANGLE_THRESH = 45  # degrees — allow wide angle variations
     
     # Create adjacency graph: endpoint_id -> list of connected endpoints
     endpoint_graph = {}  # (seg_idx, ep_type) -> [(seg_idx, ep_type), ...]
@@ -2398,7 +2398,7 @@ def main(image_path='/mnt/user-data/uploads/1774639661620_image.png', extract_fi
             )
         else:
             print("Creating component mask ...")
-            wire_mask = create_wire_mask(gray, img, connectors, clips, tapes, ocr_data)
+            wire_mask = create_wire_mask(gray, img, connectors, clips, tapes, ocr_data, lengths)
             cv2.imwrite('debug_wire_mask.png', wire_mask)
 
             nodes_dict = build_component_nodes(connectors, clips, ocr_data, tapes)
