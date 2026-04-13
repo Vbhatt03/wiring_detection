@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 
-def detect_delphi_connectors(img, gray, ocr_data, tesseract_ok=True):
+def detect_delphi_connectors(img, gray, ocr_data, paddleocr_ok=True):
     """
     Detect Delphi connectors in the wiring diagram.
     
@@ -19,7 +19,7 @@ def detect_delphi_connectors(img, gray, ocr_data, tesseract_ok=True):
         img: Color image
         gray: Grayscale image
         ocr_data: List of OCR results from ocr_full()
-        tesseract_ok: Whether OCR is available
+        paddleocr_ok: Whether OCR is available
     
     Returns:
         List of detected connectors
@@ -27,7 +27,7 @@ def detect_delphi_connectors(img, gray, ocr_data, tesseract_ok=True):
     found = []
 
     # — OCR: find DELPHI annotations —
-    if tesseract_ok:
+    if paddleocr_ok:
         for item in ocr_data:
             # Handle both old format (txt, x, y, w, h) and new format (txt, x, y, w, h, angle, conf)
             if len(item) >= 5:

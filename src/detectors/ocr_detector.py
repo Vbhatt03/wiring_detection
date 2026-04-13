@@ -3,121 +3,191 @@
 import numpy as np
 import cv2
 
+import os
+os.environ["FLAGS_enable_pir_api"] = "0"
+os.environ["FLAGS_use_mkldnn"] = "0"
+
 try:
-    import pytesseract
-    TESSERACT_OK = True
+    from paddleocr import PaddleOCR
+    import logging
+    logging.getLogger("ppocr").setLevel(logging.WARNING)
+    ocr_model = PaddleOCR(use_angle_cls=True, lang='en')
+    PADDLEOCR_OK = True
 except ImportError:
-    TESSERACT_OK = False
+    PADDLEOCR_OK = False
 
 def ocr_upscaled(gray, scale=3):
     """Run OCR on an upscaled version of the image to catch small text.
     
-    Uses --psm 11 (sparse text) on a 3x upscaled + Otsu-thresholded image.
     Returns list of (text, x, y, w, h) in original image coordinates.
     """
-    if not TESSERACT_OK:
+    if not PADDLEOCR_OK:
         return []
     upscaled = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-    _, upscaled = cv2.threshold(upscaled, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    d = pytesseract.image_to_data(upscaled, output_type=pytesseract.Output.DICT,
-                                   config='--psm 11 --oem 3')
+    
+    if len(upscaled.shape) == 2:
+        upscaled = cv2.cvtColor(upscaled, cv2.COLOR_GRAY2BGR)
+        
+    result = ocr_model.ocr(upscaled)
     results = []
-    for i, txt in enumerate(d['text']):
-        txt = txt.strip()
-        if not txt or int(d['conf'][i]) < 20:
+    if not result or not result[0]:
+        return results
+        
+    for res in result[0]:
+        box = res[0]
+        text = res[1][0].strip()
+        conf = res[1][1] * 100
+        
+        if not text or conf < 20:
             continue
-        # Convert coordinates back to original image space
-        x = int(d['left'][i] / scale)
-        y = int(d['top'][i] / scale)
-        w = int(d['width'][i] / scale)
-        h = int(d['height'][i] / scale)
-        results.append((txt, x, y, w, h))
+            
+        x_coords = [p[0] for p in box]
+        y_coords = [p[1] for p in box]
+        x_box = min(x_coords)
+        y_box = min(y_coords)
+        w_box = max(x_coords) - x_box
+        h_box = max(y_coords) - y_box
+        
+        x = int(x_box / scale)
+        y = int(y_box / scale)
+        w = int(w_box / scale)
+        h = int(h_box / scale)
+        
+        results.append((text, x, y, w, h))
     return results
 def ocr_full(gray):
-    """Return list of (text, x, y, w, h, angle, confidence) for every detected word.
-    
-    Scans text at arbitrary angles (every 10°) to catch text at all orientations
-    including diagonal text at 75°, 125°, etc.
-    Uses lower confidence threshold (20) to capture tilted/weak text.
-    Tracks angle and confidence for later deduplication.
-    """
-    if not TESSERACT_OK:
+    """Return list of (text, x, y, w, h, angle, confidence) for every detected word."""
+    if not PADDLEOCR_OK:
         return []
-    
+        
     results = []
-    H_orig, W_orig = gray.shape
-    cy, cx = H_orig / 2, W_orig / 2  # Center for rotation
     
-    seen_boxes = []  # Track detected positions to avoid raw duplicates
-    
-    # Scan at multiple angles: 0, 10, 20, 30, ... 350 degrees
-    for angle in range(0, 360, 10):
-        # Create rotation matrix
-        rot_matrix = cv2.getRotationMatrix2D((cx, cy), angle, 1.0)
-        rotated_gray = cv2.warpAffine(gray, rot_matrix, (W_orig, H_orig),
-                                       borderMode=cv2.BORDER_REPLICATE)
+    if len(gray.shape) == 2:
+        bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    else:
+        bgr = gray
         
-        # Run OCR on rotated image
-        d = pytesseract.image_to_data(rotated_gray, output_type=pytesseract.Output.DICT,
-                                       config='--psm 11 --oem 3')
+    result = ocr_model.ocr(bgr)
+    if not result or not result[0]:
+        return results
         
-        for i, txt in enumerate(d['text']):
-            txt = txt.strip()
-            if not txt:
-                continue
+    for res in result[0]:
+        box = res[0]
+        text = res[1][0].strip()
+        conf = int(res[1][1] * 100)
+        
+        if not text or conf < 20:
+            continue
             
-            x_rot, y_rot = d['left'][i], d['top'][i]
-            w_rot, h_rot = d['width'][i], d['height'][i]
-            conf = int(d['conf'][i])
+        x_coords = [float(p[0]) for p in box]
+        y_coords = [float(p[1]) for p in box]
+        x = int(min(x_coords))
+        y = int(min(y_coords))
+        w = int(max(x_coords) - x)
+        h = int(max(y_coords) - y)
+        
+        # Calculate angle
+        dx = box[1][0] - box[0][0]
+        dy = box[1][1] - box[0][1]
+        angle_deg = float(np.degrees(np.arctan2(dy, dx)))
+        if angle_deg < 0:
+            angle_deg += 360
             
-            if conf > 20:  # Lowered from 30 to capture tilted/weak text
-                # Transform bbox corners back to original image space
-                corners_rot = np.array([
-                    [x_rot, y_rot, 1.0],                    # top-left
-                    [x_rot + w_rot, y_rot, 1.0],            # top-right
-                    [x_rot, y_rot + h_rot, 1.0],            # bottom-left
-                    [x_rot + w_rot, y_rot + h_rot, 1.0]     # bottom-right
-                ]).T  # (3, 4) for matrix multiplication
-                
-                # Get inverse rotation matrix
-                inv_matrix = cv2.getRotationMatrix2D((cx, cy), -angle, 1.0)
-                
-                # Transform all corners back to original space: (2, 4)
-                corners_orig = inv_matrix @ corners_rot
-                
-                # Find axis-aligned bbox from transformed corners
-                x_coords = corners_orig[0, :]
-                y_coords = corners_orig[1, :]
-                x_min, x_max = float(np.min(x_coords)), float(np.max(x_coords))
-                y_min, y_max = float(np.min(y_coords)), float(np.max(y_coords))
-                
-                x = x_min
-                y = y_min
-                w = x_max - x_min
-                h = y_max - y_min
-                
-                # Check for duplicate detection (same text within ~20px)
-                is_duplicate = False
-                for (prev_txt, prev_x, prev_y) in seen_boxes:
-                    if prev_txt == txt:
-                        dist = ((x + w/2 - prev_x) ** 2 + (y + h/2 - prev_y) ** 2) ** 0.5
-                        if dist < 20:
-                            is_duplicate = True
-                            break
-                
-                if not is_duplicate:
-                    results.append((txt, x, y, w, h, angle, conf))
-                    seen_boxes.append((txt, x + w/2, y + h/2))
-    
+        results.append((text, x, y, w, h, angle_deg, conf))
+        
     return results
 
 
 def ocr_region(gray, x1, y1, x2, y2):
     """OCR a bounding-box crop."""
-    if not TESSERACT_OK:
+    if not PADDLEOCR_OK:
         return ""
+        
+    # PaddleOCR may fail if region is too small
+    if x2 <= x1 or y2 <= y1:
+        return ""
+        
     crop = gray[y1:y2, x1:x2]
-    crop = cv2.resize(crop, None, fx=2, fy=2, interpolation=cv2.INTER_LINEAR)
-    crop = cv2.GaussianBlur(crop, (3, 3), 0)
-    _, crop = cv2.threshold(crop, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    return pytesseract.image_to_string(crop, config='--psm 7 --oem 3').strip()
+    if len(crop.shape) == 2:
+        crop_bgr = cv2.cvtColor(crop, cv2.COLOR_GRAY2BGR)
+    else:
+        crop_bgr = crop
+        
+    result = ocr_model.ocr(crop_bgr)
+    if not result or not result[0]:
+        return ""
+        
+    texts = [res[1][0] for res in result[0] if res[1][0]]
+    return " ".join(texts).strip()
+def ocr_full_lengths(gray):
+    """OCR pass tuned for numeric wire-length annotations using combinatorials."""
+    if not PADDLEOCR_OK:
+        return []
+
+    out = []
+
+    def get_variants(img):
+        variants = []
+        variants.append(cv2.cvtColor(img, cv2.COLOR_GRAY2BGR))
+        blur = cv2.GaussianBlur(img, (3, 3), 0)
+        adapt = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 11)
+        variants.append(cv2.cvtColor(adapt, cv2.COLOR_GRAY2BGR))
+        _, otsu = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        variants.append(cv2.cvtColor(otsu, cv2.COLOR_GRAY2BGR))
+        return variants
+
+    for scale in [2.0, 3.0]:
+        up = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        h, w = up.shape[:2]
+        center = (w / 2, h / 2)
+        
+        for variant_img in get_variants(up):
+            for ang in [0, 25, 335]:
+                if ang == 0:
+                    rotated_img = variant_img
+                else:
+                    M = cv2.getRotationMatrix2D(center, ang, 1.0)
+                    rotated_img = cv2.warpAffine(variant_img, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+                    
+                result = ocr_model.ocr(rotated_img, cls=True)
+                if not result or not result[0]:
+                    continue
+                    
+                for res in result[0]:
+                    box = res[0]
+                    text = res[1][0].strip()
+                    conf = int(res[1][1] * 100)
+                    
+                    if not text or conf < 8:
+                        continue
+                        
+                    if ang != 0:
+                        M_inv = cv2.getRotationMatrix2D(center, -ang, 1.0)
+                        new_box = []
+                        for p in box:
+                            pt = np.array([float(p[0]), float(p[1]), 1.0])
+                            new_pt = M_inv.dot(pt)
+                            new_box.append([new_pt[0], new_pt[1]])
+                        box = new_box
+                        
+                    x_coords = [float(p[0]) for p in box]
+                    y_coords = [float(p[1]) for p in box]
+                    x_u = min(x_coords)
+                    y_u = min(y_coords)
+                    w_u = max(x_coords) - x_u
+                    h_u = max(y_coords) - y_u
+                    
+                    x = int(x_u / scale)
+                    y = int(y_u / scale)
+                    w_norm = max(1, int(w_u / scale))
+                    h_norm = max(1, int(h_u / scale))
+                    
+                    dx = box[1][0] - box[0][0]
+                    dy = box[1][1] - box[0][1]
+                    angle_deg = float(np.degrees(np.arctan2(dy, dx)))
+                    if angle_deg < 0:
+                        angle_deg += 360.0
+                        
+                    out.append((text, x, y, w_norm, h_norm, angle_deg, conf))
+            
+    return out

@@ -9,7 +9,7 @@ This package contains specialized detection modules for different diagram elemen
 - wire_detector: Wire segment detection and filtering
 """
 
-from .ocr_detector import ocr_full, ocr_region, TESSERACT_OK
+from .ocr_detector import ocr_full, ocr_region, PADDLEOCR_OK
 from .tape_detector import detect_tape_labels, TAPE_PATTERNS, TAPE_COLOR_BGR
 from .connector_detector import detect_delphi_connectors
 from .clip_detector import detect_blue_clips
@@ -19,7 +19,7 @@ from .wire_detector import detect_wires, filter_wires_by_components, detect_comp
 __all__ = [
     'ocr_full',
     'ocr_region',
-    'TESSERACT_OK',
+    'PADDLEOCR_OK',
     'detect_tape_labels',
     'detect_delphi_connectors',
     'detect_blue_clips',

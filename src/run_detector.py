@@ -19,7 +19,7 @@ import cv2
 import numpy as np
 
 # Import detector modules
-from .detectors.ocr_detector import ocr_full, TESSERACT_OK
+from .detectors.ocr_detector import ocr_full, PADDLEOCR_OK, ocr_full_lengths
 from .detectors.tape_detector import detect_tape_labels, TAPE_COLOR_BGR
 from .detectors.connector_detector import detect_delphi_connectors
 from .detectors.clip_detector import detect_blue_clips
@@ -95,6 +95,9 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
     print("Running OCR ...")
     ocr_data = ocr_full(gray)
     print(f"  {len(ocr_data)} text tokens found")
+    print("Running length OCR ...")
+    ocr_lengths = ocr_full_lengths(gray)
+    print(f"  {len(ocr_lengths)} length OCR tokens found")
 
     # Phase 2: Element Detection
     tapes = []
@@ -106,7 +109,7 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
     connectors = []
     if extract_filters.get('connectors', True):
         print("Detecting Delphi connectors ...")
-        connectors = detect_delphi_connectors(img, gray, ocr_data, tesseract_ok=TESSERACT_OK)
+        connectors = detect_delphi_connectors(img, gray, ocr_data, paddleocr_ok=PADDLEOCR_OK)
         print(f"  {len(connectors)} connectors")
 
     clips = []
@@ -118,7 +121,7 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
     lengths = []
     if extract_filters.get('lengths', True):
         print("Detecting wire-length annotations ...")
-        lengths = detect_wire_lengths(ocr_data, tapes, connectors)
+        lengths = detect_wire_lengths(ocr_lengths, tapes, connectors)
         print(f"  {len(lengths)} length annotations")
 
     # Phase 3: Wire Detection & Connectivity

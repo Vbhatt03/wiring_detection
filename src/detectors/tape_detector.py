@@ -6,7 +6,7 @@ import numpy as np
 from src.detectors.ocr_detector import ocr_region , ocr_upscaled
 
 TAPE_PATTERNS = re.compile(
-    r'(VT)-[A-Z]{2}|MLC\w+', re.IGNORECASE)
+    r'(VT)\s*-\s*[A-Z]{1,2}|MLC\w+', re.IGNORECASE)
 
 TAPE_COLOR_BGR = {
     'VT-WH':  (  0,   0, 180),   # dark red
@@ -54,7 +54,7 @@ def detect_tape_labels(img, gray, ocr_data):
             if key not in matched_positions:
                 matched_positions.add(key)
                 found.append({
-                    'label': m.group(0).upper(),
+                    'label': m.group(0).upper().replace(" ", ""),
                     'bbox': (t['x'], t['y'], t['w'], t['h']),
                     'source': 'ocr_label'
                 })
@@ -104,12 +104,12 @@ def detect_tape_labels(img, gray, ocr_data):
             if key not in matched_positions:
                 matched_positions.add(key)
                 found.append({
-                    'label': m.group(0).upper(),
-                    'bbox': (x1 + pad, y1 + pad, x2 - x1 - 2*pad, y2 - y1 - 2*pad),
+                    'label': m.group(0).upper().replace(" ", ""),
+                    'bbox': (t1['x'], t1['y'], t1['w'], t1['h']),
                     'source': 'ocr_region'
                 })
                 print(f"    [Tape Detection] Region re-OCR: '{re_txt}' → {m.group(0).upper()}")
-    print(f"    [Tape Debug] Pass 3 crop ({x1},{y1})-({x2},{y2}) re-OCR result: '{re_txt}'")
+
 
     # Deduplicate by exact bbox position
     seen = set()

@@ -11,7 +11,7 @@
       "id": "Connector-2",
       "x": 1482,
       "y": 553,
-      "label": "X89",
+      "label": "X533",
       "type": "connector"
     },
     {
@@ -71,64 +71,130 @@
       "type": "connector"
     },
     {
-      "id": "Tape-VT-VE-1",
-      "x": 606,
-      "y": 83,
-      "label": "VT-VE",
+      "id": "Tape-VT-BI-1",
+      "x": 708,
+      "y": 544,
+      "label": "VT-BI",
       "type": "tape"
+    },
+    {
+      "id": "Tape-VT-BK-1",
+      "x": 518,
+      "y": 542,
+      "label": "VT-BK",
+      "type": "tape"
+    },
+    {
+      "id": "Tape-VT-P-1",
+      "x": 1126,
+      "y": 323,
+      "label": "VT-P",
+      "type": "tape"
+    },
+    {
+      "id": "Tape-VT-WH-1",
+      "x": 1332,
+      "y": 640,
+      "label": "VT-WH",
+      "type": "tape"
+    },
+    {
+      "id": "Tape-VT-YE-1",
+      "x": 605,
+      "y": 81,
+      "label": "VT-YE",
+      "type": "tape"
+    },
+    {
+      "id": "Tape-VT-YE-2",
+      "x": 1362,
+      "y": 401,
+      "label": "VT-YE",
+      "type": "tape"
+    },
+    {
+      "id": "J40",
+      "x": 572,
+      "y": 530,
+      "label": "J40",
+      "type": "junction"
     }
   ],
   "edges": [
     {
-      "tapes": [],
+      "tapes": [
+        "VT-WH"
+      ],
       "from": "Connector-1",
-      "to": "Connector-2",
-      "length_mm": 75,
+      "to": "Tape-VT-WH-1",
+      "length_mm": null,
       "segment_count": 1,
       "endpoint_1": [
-        1355,
-        692
+        1326,
+        649
       ],
       "endpoint_2": [
-        1451,
-        553
+        1319,
+        671
       ]
     },
     {
-      "tapes": [],
-      "from": "Connector-1",
-      "to": "Connector-6",
-      "length_mm": 75,
-      "segment_count": 1,
-      "endpoint_1": [
-        1355,
-        692
+      "tapes": [
+        "VT-YE"
       ],
-      "endpoint_2": [
-        1060,
-        442
-      ]
-    },
-    {
-      "tapes": [],
       "from": "Connector-2",
-      "to": "Connector-6",
-      "length_mm": 55,
+      "to": "Connector-3",
+      "length_mm": 105,
       "segment_count": 1,
       "endpoint_1": [
-        1205,
-        537
+        1486,
+        528
       ],
       "endpoint_2": [
-        1060,
-        442
+        1339,
+        418
+      ]
+    },
+    {
+      "tapes": [
+        "VT-WH"
+      ],
+      "from": "Connector-2",
+      "to": "Tape-VT-WH-1",
+      "length_mm": 105,
+      "segment_count": 1,
+      "endpoint_1": [
+        1486,
+        528
+      ],
+      "endpoint_2": [
+        1319,
+        671
+      ]
+    },
+    {
+      "tapes": [
+        "VT-WH",
+        "VT-YE"
+      ],
+      "from": "Connector-3",
+      "to": "Tape-VT-WH-1",
+      "length_mm": 105,
+      "segment_count": 1,
+      "endpoint_1": [
+        1339,
+        418
+      ],
+      "endpoint_2": [
+        1319,
+        671
       ]
     },
     {
       "tapes": [],
       "from": "Connector-4",
       "to": "Connector-5",
-      "length_mm": 24,
+      "length_mm": null,
       "segment_count": 1,
       "endpoint_1": [
         909,
@@ -143,7 +209,7 @@
       "tapes": [],
       "from": "Connector-5",
       "to": "Connector-7",
-      "length_mm": 45,
+      "length_mm": null,
       "segment_count": 1,
       "endpoint_1": [
         739,
@@ -167,6 +233,57 @@
       "endpoint_2": [
         835,
         316
+      ]
+    },
+    {
+      "tapes": [
+        "VT-BI"
+      ],
+      "from": "Connector-5",
+      "to": "Tape-VT-BI-1",
+      "length_mm": 55,
+      "segment_count": 1,
+      "endpoint_1": [
+        731,
+        337
+      ],
+      "endpoint_2": [
+        730,
+        492
+      ]
+    },
+    {
+      "tapes": [
+        "VT-P"
+      ],
+      "from": "Connector-6",
+      "to": "Tape-VT-P-1",
+      "length_mm": null,
+      "segment_count": 1,
+      "endpoint_1": [
+        1185,
+        355
+      ],
+      "endpoint_2": [
+        1147,
+        351
+      ]
+    },
+    {
+      "tapes": [
+        "VT-BK"
+      ],
+      "from": "Tape-VT-BK-1",
+      "to": "J40",
+      "length_mm": 20,
+      "segment_count": 1,
+      "endpoint_1": [
+        540,
+        548
+      ],
+      "endpoint_2": [
+        555,
+        549
       ]
     }
   ]
