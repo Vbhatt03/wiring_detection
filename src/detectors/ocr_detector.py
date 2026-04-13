@@ -9,7 +9,30 @@ try:
 except ImportError:
     TESSERACT_OK = False
 
-
+def ocr_upscaled(gray, scale=3):
+    """Run OCR on an upscaled version of the image to catch small text.
+    
+    Uses --psm 11 (sparse text) on a 3x upscaled + Otsu-thresholded image.
+    Returns list of (text, x, y, w, h) in original image coordinates.
+    """
+    if not TESSERACT_OK:
+        return []
+    upscaled = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    _, upscaled = cv2.threshold(upscaled, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    d = pytesseract.image_to_data(upscaled, output_type=pytesseract.Output.DICT,
+                                   config='--psm 11 --oem 3')
+    results = []
+    for i, txt in enumerate(d['text']):
+        txt = txt.strip()
+        if not txt or int(d['conf'][i]) < 20:
+            continue
+        # Convert coordinates back to original image space
+        x = int(d['left'][i] / scale)
+        y = int(d['top'][i] / scale)
+        w = int(d['width'][i] / scale)
+        h = int(d['height'][i] / scale)
+        results.append((txt, x, y, w, h))
+    return results
 def ocr_full(gray):
     """Return list of (text, x, y, w, h, angle, confidence) for every detected word.
     

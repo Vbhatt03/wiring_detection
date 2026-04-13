@@ -2,279 +2,171 @@
   "nodes": [
     {
       "id": "Connector-1",
-      "x": 105,
-      "y": 634,
-      "label": "shape-detected (27\u00d716px)",
+      "x": 1376,
+      "y": 673,
+      "label": "shape-detected (36\u00d724px)",
       "type": "connector"
     },
     {
       "id": "Connector-2",
-      "x": 676,
-      "y": 336,
-      "label": "X519",
+      "x": 1482,
+      "y": 553,
+      "label": "X89",
       "type": "connector"
     },
     {
       "id": "Connector-3",
-      "x": 431,
-      "y": 36,
-      "label": "X508",
+      "x": 1354,
+      "y": 437,
+      "label": "shape-detected (35\u00d724px)",
       "type": "connector"
     },
     {
       "id": "Connector-4",
-      "x": 129,
-      "y": 18,
-      "label": "X510",
+      "x": 893,
+      "y": 394,
+      "label": "shape-detected (36\u00d724px)",
       "type": "connector"
     },
     {
-      "id": "Clip-1",
-      "x": 429,
-      "y": 161,
-      "label": "Z2-TH1",
-      "type": "clip"
+      "id": "Connector-5",
+      "x": 778,
+      "y": 339,
+      "label": "shape-detected (35\u00d723px)",
+      "type": "connector"
     },
     {
-      "id": "Clip-2",
-      "x": 196,
-      "y": 163,
-      "label": "Z2-TH2",
-      "type": "clip"
+      "id": "Connector-6",
+      "x": 1178,
+      "y": 332,
+      "label": "shape-detected (35\u00d724px)",
+      "type": "connector"
     },
     {
-      "id": "Tape-AT-BK-1",
-      "x": 903,
-      "y": 705,
-      "label": "AT-BK",
+      "id": "Connector-7",
+      "x": 662,
+      "y": 292,
+      "label": "shape-detected (35\u00d724px)",
+      "type": "connector"
+    },
+    {
+      "id": "Connector-8",
+      "x": 868,
+      "y": 177,
+      "label": "shape-detected (35\u00d725px)",
+      "type": "connector"
+    },
+    {
+      "id": "Connector-9",
+      "x": 71,
+      "y": 149,
+      "label": "shape-detected (35\u00d724px)",
+      "type": "connector"
+    },
+    {
+      "id": "Connector-10",
+      "x": 558,
+      "y": 52,
+      "label": "shape-detected (35\u00d725px)",
+      "type": "connector"
+    },
+    {
+      "id": "Tape-VT-VE-1",
+      "x": 606,
+      "y": 83,
+      "label": "VT-VE",
       "type": "tape"
-    },
-    {
-      "id": "Tape-VT-BK-1",
-      "x": 542,
-      "y": 704,
-      "label": "VT-BK",
-      "type": "tape"
-    },
-    {
-      "id": "Tape-VT-PK-1",
-      "x": 196,
-      "y": 87,
-      "label": "VT-PK",
-      "type": "tape"
-    },
-    {
-      "id": "Tape-VT-PK-2",
-      "x": 196,
-      "y": 251,
-      "label": "VT-PK",
-      "type": "tape"
-    },
-    {
-      "id": "Tape-VT-WH-1",
-      "x": 429,
-      "y": 86,
-      "label": "VT-WH",
-      "type": "tape"
-    },
-    {
-      "id": "Tape-VT-WH-2",
-      "x": 429,
-      "y": 251,
-      "label": "VT-WH",
-      "type": "tape"
-    },
-    {
-      "id": "J20",
-      "x": 483,
-      "y": 684,
-      "label": "J20",
-      "type": "junction"
     }
   ],
   "edges": [
     {
-      "tapes": [
-        "VT-PK"
-      ],
+      "tapes": [],
       "from": "Connector-1",
-      "to": "Tape-VT-PK-2",
-      "length_mm": 100,
+      "to": "Connector-2",
+      "length_mm": 75,
       "segment_count": 1,
       "endpoint_1": [
-        92,
-        614
+        1355,
+        692
       ],
       "endpoint_2": [
-        190,
-        265
+        1451,
+        553
       ]
     },
     {
       "tapes": [],
       "from": "Connector-1",
-      "to": "J20",
-      "length_mm": 58,
+      "to": "Connector-6",
+      "length_mm": 75,
       "segment_count": 1,
       "endpoint_1": [
-        92,
-        614
+        1355,
+        692
       ],
       "endpoint_2": [
-        443,
-        703
+        1060,
+        442
       ]
     },
     {
       "tapes": [],
       "from": "Connector-2",
-      "to": "J20",
-      "length_mm": 100,
+      "to": "Connector-6",
+      "length_mm": 55,
       "segment_count": 1,
       "endpoint_1": [
-        625,
-        389
+        1205,
+        537
       ],
       "endpoint_2": [
-        443,
-        703
+        1060,
+        442
       ]
     },
     {
-      "tapes": [
-        "VT-WH"
-      ],
-      "from": "Connector-3",
-      "to": "Tape-VT-WH-1",
-      "length_mm": 25,
-      "segment_count": 1,
-      "endpoint_1": [
-        419,
-        71
-      ],
-      "endpoint_2": [
-        425,
-        101
-      ]
-    },
-    {
-      "tapes": [
-        "VT-PK"
-      ],
+      "tapes": [],
       "from": "Connector-4",
-      "to": "Tape-VT-PK-1",
-      "length_mm": 25,
+      "to": "Connector-5",
+      "length_mm": 24,
       "segment_count": 1,
       "endpoint_1": [
-        155,
-        17
+        909,
+        360
       ],
       "endpoint_2": [
-        179,
-        64
+        809,
+        311
       ]
     },
     {
-      "tapes": [
-        "VT-WH"
-      ],
-      "from": "Clip-1",
-      "to": "Tape-VT-WH-1",
-      "length_mm": 25,
+      "tapes": [],
+      "from": "Connector-5",
+      "to": "Connector-7",
+      "length_mm": 45,
       "segment_count": 1,
       "endpoint_1": [
-        433,
-        101
+        739,
+        276
       ],
       "endpoint_2": [
-        434,
-        142
+        661,
+        313
       ]
     },
     {
-      "tapes": [
-        "VT-PK"
-      ],
-      "from": "Clip-2",
-      "to": "Tape-VT-PK-1",
-      "length_mm": 25,
-      "segment_count": 1,
-      "endpoint_1": [
-        192,
-        135
-      ],
-      "endpoint_2": [
-        192,
-        114
-      ]
-    },
-    {
-      "tapes": [
-        "VT-PK"
-      ],
-      "from": "Clip-2",
-      "to": "Tape-VT-PK-2",
-      "length_mm": 50,
-      "segment_count": 1,
-      "endpoint_1": [
-        192,
-        180
-      ],
-      "endpoint_2": [
-        192,
-        220
-      ]
-    },
-    {
-      "tapes": [
-        "AT-BK",
-        "VT-BK"
-      ],
-      "from": "Tape-AT-BK-1",
-      "to": "J20",
-      "length_mm": 137,
-      "segment_count": 1,
-      "endpoint_1": [
-        850,
-        702
-      ],
-      "endpoint_2": [
-        532,
-        703
-      ]
-    },
-    {
-      "tapes": [
-        "VT-BK"
-      ],
-      "from": "Tape-VT-BK-1",
-      "to": "J20",
+      "tapes": [],
+      "from": "Connector-5",
+      "to": "Connector-8",
       "length_mm": null,
       "segment_count": 1,
       "endpoint_1": [
-        492,
-        740
+        809,
+        306
       ],
       "endpoint_2": [
-        505,
-        744
-      ]
-    },
-    {
-      "tapes": [
-        "VT-PK"
-      ],
-      "from": "Tape-VT-PK-2",
-      "to": "J20",
-      "length_mm": 100,
-      "segment_count": 1,
-      "endpoint_1": [
-        201,
-        264
-      ],
-      "endpoint_2": [
-        443,
-        703
+        835,
+        316
       ]
     }
   ]
