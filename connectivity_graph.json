@@ -254,28 +254,11 @@
     },
     {
       "tapes": [
-        "VT-P"
-      ],
-      "from": "Connector-6",
-      "to": "Tape-VT-P-1",
-      "length_mm": null,
-      "segment_count": 1,
-      "endpoint_1": [
-        1185,
-        355
-      ],
-      "endpoint_2": [
-        1147,
-        351
-      ]
-    },
-    {
-      "tapes": [
         "VT-BK"
       ],
       "from": "Tape-VT-BK-1",
       "to": "J40",
-      "length_mm": 20,
+      "length_mm": null,
       "segment_count": 1,
       "endpoint_1": [
         540,

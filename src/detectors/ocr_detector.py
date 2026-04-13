@@ -129,65 +129,71 @@ def ocr_full_lengths(gray):
     def get_variants(img):
         variants = []
         variants.append(cv2.cvtColor(img, cv2.COLOR_GRAY2BGR))
-        blur = cv2.GaussianBlur(img, (3, 3), 0)
-        adapt = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 11)
-        variants.append(cv2.cvtColor(adapt, cv2.COLOR_GRAY2BGR))
-        _, otsu = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        variants.append(cv2.cvtColor(otsu, cv2.COLOR_GRAY2BGR))
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        cl1 = clahe.apply(img)
+        variants.append(cv2.cvtColor(cl1, cv2.COLOR_GRAY2BGR))
         return variants
 
-    for scale in [2.0, 3.0]:
-        up = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-        h, w = up.shape[:2]
-        center = (w / 2, h / 2)
+    h_orig, w_orig = gray.shape[:2]
+    scale = max(2.0, min(4.0, w_orig / 500.0))
+    up = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    
+    for variant_img in get_variants(up):
+        h, w = variant_img.shape[:2]
+        center = (w / 2.0, h / 2.0)
         
-        for variant_img in get_variants(up):
-            for ang in [0, 25, 335]:
-                if ang == 0:
-                    rotated_img = variant_img
-                else:
-                    M = cv2.getRotationMatrix2D(center, ang, 1.0)
-                    rotated_img = cv2.warpAffine(variant_img, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
-                    
-                result = ocr_model.ocr(rotated_img, cls=True)
-                if not result or not result[0]:
+        for ang in [0, 45, 90, 270, 315]:
+            if ang == 0:
+                rotated_img = variant_img
+            else:
+                M = cv2.getRotationMatrix2D(center, ang, 1.0)
+                cos, sin = np.abs(M[0, 0]), np.abs(M[0, 1])
+                nW = int((h * sin) + (w * cos))
+                nH = int((h * cos) + (w * sin))
+                M[0, 2] += (nW / 2.0) - center[0]
+                M[1, 2] += (nH / 2.0) - center[1]
+                
+                rotated_img = cv2.warpAffine(variant_img, M, (nW, nH), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+                
+            result = ocr_model.ocr(rotated_img, cls=True)
+            if not result or not result[0]:
+                continue
+                
+            for res in result[0]:
+                box = res[0]
+                text = res[1][0].strip()
+                conf = int(res[1][1] * 100)
+                
+                if not text or conf < 8:
                     continue
                     
-                for res in result[0]:
-                    box = res[0]
-                    text = res[1][0].strip()
-                    conf = int(res[1][1] * 100)
+                if ang != 0:
+                    M_inv = cv2.invertAffineTransform(M)
+                    new_box = []
+                    for p in box:
+                        pt = np.array([float(p[0]), float(p[1]), 1.0])
+                        new_pt = M_inv.dot(pt)
+                        new_box.append([new_pt[0], new_pt[1]])
+                    box = new_box
                     
-                    if not text or conf < 8:
-                        continue
-                        
-                    if ang != 0:
-                        M_inv = cv2.getRotationMatrix2D(center, -ang, 1.0)
-                        new_box = []
-                        for p in box:
-                            pt = np.array([float(p[0]), float(p[1]), 1.0])
-                            new_pt = M_inv.dot(pt)
-                            new_box.append([new_pt[0], new_pt[1]])
-                        box = new_box
-                        
-                    x_coords = [float(p[0]) for p in box]
-                    y_coords = [float(p[1]) for p in box]
-                    x_u = min(x_coords)
-                    y_u = min(y_coords)
-                    w_u = max(x_coords) - x_u
-                    h_u = max(y_coords) - y_u
+                x_coords = [float(p[0]) for p in box]
+                y_coords = [float(p[1]) for p in box]
+                x_u = min(x_coords)
+                y_u = min(y_coords)
+                w_u = max(x_coords) - x_u
+                h_u = max(y_coords) - y_u
+                
+                x_scale = int(x_u / scale)
+                y_scale = int(y_u / scale)
+                w_norm = max(1, int(w_u / scale))
+                h_norm = max(1, int(h_u / scale))
+                
+                dx = box[1][0] - box[0][0]
+                dy = box[1][1] - box[0][1]
+                angle_deg = float(np.degrees(np.arctan2(dy, dx)))
+                if angle_deg < 0:
+                    angle_deg += 360.0
                     
-                    x = int(x_u / scale)
-                    y = int(y_u / scale)
-                    w_norm = max(1, int(w_u / scale))
-                    h_norm = max(1, int(h_u / scale))
-                    
-                    dx = box[1][0] - box[0][0]
-                    dy = box[1][1] - box[0][1]
-                    angle_deg = float(np.degrees(np.arctan2(dy, dx)))
-                    if angle_deg < 0:
-                        angle_deg += 360.0
-                        
-                    out.append((text, x, y, w_norm, h_norm, angle_deg, conf))
+                out.append((text, x_scale, y_scale, w_norm, h_norm, angle_deg, conf))
             
     return out

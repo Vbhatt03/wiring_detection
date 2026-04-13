@@ -163,12 +163,14 @@ def detect_wire_lengths(ocr_data, tapes=None, connectors=None):
                 pre_overlap_count += 1
                 is_overlapping_label = False
                 bbox_tolerance = 3 if is_parenthesized else 6
+                cx = x + w / 2.0
+                cy = y + h / 2.0
                 
                 # Check against tape labels
                 for tape in tapes:
                     tx, ty, tw, th = tape['bbox']
-                    if (x < tx + tw + bbox_tolerance and x + w > tx - bbox_tolerance and
-                        y < ty + th + bbox_tolerance and y + h > ty - bbox_tolerance):
+                    if (cx >= tx - bbox_tolerance and cx <= tx + tw + bbox_tolerance and
+                        cy >= ty - bbox_tolerance and cy <= ty + th + bbox_tolerance):
                         is_overlapping_label = True
                         tape_reject_count += 1
                         break
@@ -176,17 +178,17 @@ def detect_wire_lengths(ocr_data, tapes=None, connectors=None):
                 # Check against connectors
                 if not is_overlapping_label:
                     for conn in connectors:
-                        cx, cy, cw, ch = conn['bbox']
-                        if (x < cx + cw + bbox_tolerance and x + w > cx - bbox_tolerance and
-                            y < cy + ch + bbox_tolerance and y + h > cy - bbox_tolerance):
+                        cx_conn, cy_conn, cw_conn, ch_conn = conn['bbox']
+                        if (cx >= cx_conn - bbox_tolerance and cx <= cx_conn + cw_conn + bbox_tolerance and
+                            cy >= cy_conn - bbox_tolerance and cy <= cy_conn + ch_conn + bbox_tolerance):
                             is_overlapping_label = True
                             break
                 
                 # Check against label keywords (for non-parenthesized values)
                 if not is_overlapping_label and not is_parenthesized:
                     for lx, ly, lw, lh in label_positions:
-                        if (x < lx + lw + 5 and x + w > lx - 5 and
-                            y < ly + lh + 5 and y + h > ly - 5):
+                        if (cx >= lx - 5 and cx <= lx + lw + 5 and
+                            cy >= ly - 5 and cy <= ly + lh + 5):
                             is_overlapping_label = True
                             break
                 
