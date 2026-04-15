@@ -111,13 +111,18 @@ def detect_tape_labels(img, gray, ocr_data):
                 print(f"    [Tape Detection] Region re-OCR: '{re_txt}' → {m.group(0).upper()}")
 
 
-    # Deduplicate by exact bbox position
-    seen = set()
+    # Proximity-based dedup: same label within 30px center → keep first
     deduped = []
     for tape in found:
-        key = tape['bbox']
-        if key not in seen:
-            seen.add(key)
+        tx, ty, tw, th = tape['bbox']
+        tcx, tcy = tx + tw // 2, ty + th // 2
+        is_dup = any(
+            tape['label'] == kept['label'] and
+            abs(tcx - (kept['bbox'][0] + kept['bbox'][2] // 2)) < 30 and
+            abs(tcy - (kept['bbox'][1] + kept['bbox'][3] // 2)) < 30
+            for kept in deduped
+        )
+        if not is_dup:
             deduped.append(tape)
 
     print(f"    [Tape Detection] Found {len(deduped)} tape labels")

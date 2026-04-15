@@ -98,12 +98,31 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
     print("Running length OCR ...")
     ocr_lengths = ocr_full_lengths(gray)
     print(f"  {len(ocr_lengths)} length OCR tokens found")
+    # Diagnostic: dump all purely numeric tokens from ocr_lengths
+    import re as _re
+    numeric_hits = [(t[0], t[1], t[2]) for t in ocr_lengths if _re.fullmatch(r'[\(\+]*\d{1,4}[\+\)]*', t[0].strip())]
+    print(f"  [Debug] Numeric-pattern tokens in ocr_lengths: {len(numeric_hits)}")
+    for tok in numeric_hits:
+        print(f"    '{tok[0]}' at ({tok[1]}, {tok[2]})")
+    # Save debug image showing where OCR found numeric tokens
+    debug_ocr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    seen_positions = set()
+    for tok in ocr_lengths:
+        if _re.fullmatch(r'[\(\+]*\d{1,4}[\+\)]*', tok[0].strip()):
+            pos_key = (tok[1] // 5, tok[2] // 5)  # bucket to 5px grid to dedup visually
+            if pos_key not in seen_positions:
+                seen_positions.add(pos_key)
+                x, y, w, h = tok[1], tok[2], tok[3], tok[4]
+                cv2.rectangle(debug_ocr, (x, y), (x+w, y+h), (0, 255, 0), 1)
+                cv2.putText(debug_ocr, tok[0], (x, y-3), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+    cv2.imwrite('debug_ocr_numerics.png', debug_ocr)
+    print(f"  [Debug] Saved debug_ocr_numerics.png")
 
     # Phase 2: Element Detection
     tapes = []
     if extract_filters.get('tapes', True):
         print("Detecting tape labels ...")
-        tapes = detect_tape_labels(img, gray, ocr_data)
+        tapes = detect_tape_labels(img, gray, ocr_data + list(ocr_lengths))
         print(f"  {len(tapes)} tape labels")
 
     connectors = []

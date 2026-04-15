@@ -120,80 +120,98 @@ def ocr_region(gray, x1, y1, x2, y2):
     texts = [res[1][0] for res in result[0] if res[1][0]]
     return " ".join(texts).strip()
 def ocr_full_lengths(gray):
-    """OCR pass tuned for numeric wire-length annotations using combinatorials."""
+    """OCR pass tuned for numeric wire-length annotations using image tiling.
+
+    Two-pass strategy:
+    - Pass 1 (0deg): 480px tiles upscaled 2x = 960px — fits det_limit_side_len exactly.
+    - Pass 2 (rotated): 320px tiles upscaled 2x = 640px — at 45deg diagonal ~905px < 960px.
+    Both passes avoid PaddleOCR's internal downscaling that makes small numbers invisible.
+    """
     if not PADDLEOCR_OK:
         return []
 
+    scale = 2.0
+    h_orig, w_orig = gray.shape[:2]
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    variants_gray = [gray, clahe.apply(gray)]
     out = []
 
-    def get_variants(img):
-        variants = []
-        variants.append(cv2.cvtColor(img, cv2.COLOR_GRAY2BGR))
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-        cl1 = clahe.apply(img)
-        variants.append(cv2.cvtColor(cl1, cv2.COLOR_GRAY2BGR))
-        return variants
+    def _ocr_tiles(var_gray, tile_size, overlap, angles):
+        y = 0
+        while y < h_orig:
+            y_end = min(y + tile_size, h_orig)
+            x = 0
+            while x < w_orig:
+                x_end = min(x + tile_size, w_orig)
 
-    h_orig, w_orig = gray.shape[:2]
-    scale = max(2.0, min(4.0, w_orig / 500.0))
-    up = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-    
-    for variant_img in get_variants(up):
-        h, w = variant_img.shape[:2]
-        center = (w / 2.0, h / 2.0)
-        
-        for ang in [0, 45, 90, 270, 315]:
-            if ang == 0:
-                rotated_img = variant_img
-            else:
-                M = cv2.getRotationMatrix2D(center, ang, 1.0)
-                cos, sin = np.abs(M[0, 0]), np.abs(M[0, 1])
-                nW = int((h * sin) + (w * cos))
-                nH = int((h * cos) + (w * sin))
-                M[0, 2] += (nW / 2.0) - center[0]
-                M[1, 2] += (nH / 2.0) - center[1]
-                
-                rotated_img = cv2.warpAffine(variant_img, M, (nW, nH), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
-                
-            result = ocr_model.ocr(rotated_img, cls=True)
-            if not result or not result[0]:
-                continue
-                
-            for res in result[0]:
-                box = res[0]
-                text = res[1][0].strip()
-                conf = int(res[1][1] * 100)
-                
-                if not text or conf < 8:
-                    continue
-                    
-                if ang != 0:
-                    M_inv = cv2.invertAffineTransform(M)
-                    new_box = []
-                    for p in box:
-                        pt = np.array([float(p[0]), float(p[1]), 1.0])
-                        new_pt = M_inv.dot(pt)
-                        new_box.append([new_pt[0], new_pt[1]])
-                    box = new_box
-                    
-                x_coords = [float(p[0]) for p in box]
-                y_coords = [float(p[1]) for p in box]
-                x_u = min(x_coords)
-                y_u = min(y_coords)
-                w_u = max(x_coords) - x_u
-                h_u = max(y_coords) - y_u
-                
-                x_scale = int(x_u / scale)
-                y_scale = int(y_u / scale)
-                w_norm = max(1, int(w_u / scale))
-                h_norm = max(1, int(h_u / scale))
-                
-                dx = box[1][0] - box[0][0]
-                dy = box[1][1] - box[0][1]
-                angle_deg = float(np.degrees(np.arctan2(dy, dx)))
-                if angle_deg < 0:
-                    angle_deg += 360.0
-                    
-                out.append((text, x_scale, y_scale, w_norm, h_norm, angle_deg, conf))
-            
+                tile = var_gray[y:y_end, x:x_end]
+                tile_up = cv2.resize(tile, None, fx=scale, fy=scale,
+                                     interpolation=cv2.INTER_CUBIC)
+                th, tw = tile_up.shape[:2]
+                center = (tw / 2.0, th / 2.0)
+
+                for ang in angles:
+                    if ang == 0:
+                        rotated = cv2.cvtColor(tile_up, cv2.COLOR_GRAY2BGR)
+                        M_inv = None
+                    else:
+                        M = cv2.getRotationMatrix2D(center, ang, 1.0)
+                        cos, sin = np.abs(M[0, 0]), np.abs(M[0, 1])
+                        nW = int((th * sin) + (tw * cos))
+                        nH = int((th * cos) + (tw * sin))
+                        M[0, 2] += (nW / 2.0) - center[0]
+                        M[1, 2] += (nH / 2.0) - center[1]
+                        rot_gray = cv2.warpAffine(tile_up, M, (nW, nH),
+                                                  flags=cv2.INTER_CUBIC,
+                                                  borderMode=cv2.BORDER_REPLICATE)
+                        rotated = cv2.cvtColor(rot_gray, cv2.COLOR_GRAY2BGR)
+                        M_inv = cv2.invertAffineTransform(M)
+
+                    result = ocr_model.ocr(rotated, cls=True)
+                    if not result or not result[0]:
+                        continue
+
+                    for res in result[0]:
+                        box  = res[0]
+                        text = res[1][0].strip()
+                        conf = int(res[1][1] * 100)
+                        if not text or conf < 8:
+                            continue
+
+                        if M_inv is not None:
+                            box = [
+                                (M_inv @ np.array([float(p[0]), float(p[1]), 1.0]))[:2].tolist()
+                                for p in box
+                            ]
+
+                        x_coords = [float(p[0]) for p in box]
+                        y_coords = [float(p[1]) for p in box]
+                        x_u = min(x_coords)
+                        y_u = min(y_coords)
+                        w_u = max(x_coords) - x_u
+                        h_u = max(y_coords) - y_u
+
+                        orig_x = int(x_u / scale) + x
+                        orig_y = int(y_u / scale) + y
+                        orig_w = max(1, int(w_u / scale))
+                        orig_h = max(1, int(h_u / scale))
+
+                        dx = box[1][0] - box[0][0]
+                        dy = box[1][1] - box[0][1]
+                        angle_deg = float(np.degrees(np.arctan2(dy, dx)))
+                        if angle_deg < 0:
+                            angle_deg += 360.0
+
+                        out.append((text, orig_x, orig_y, orig_w, orig_h,
+                                    angle_deg, conf))
+
+                x = x_end if x_end == w_orig else x_end - overlap
+            y = y_end if y_end == h_orig else y_end - overlap
+
+    for var_gray in variants_gray:
+        # Pass 1: horizontal text — 480px tiles, 0deg only
+        _ocr_tiles(var_gray, tile_size=480, overlap=40, angles=[0])
+        # Pass 2: angled text — 320px tiles (640px upscaled, ~905px at 45deg < 960px limit)
+        _ocr_tiles(var_gray, tile_size=320, overlap=30, angles=[30,45,60,75, 90,115,130, 270, 315,345,330])
+
     return out
