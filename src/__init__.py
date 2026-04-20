@@ -85,6 +85,7 @@ __all__ = [
     'map_components_to_graph',
     'assign_wire_properties',
     'convert_to_legacy_format',
+    'trace_mask_connectivity',
     # Visualization and reporting
     'annotate',
     'draw_label',

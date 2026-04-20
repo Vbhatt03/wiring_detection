@@ -175,7 +175,11 @@ def build_component_nodes(connectors, clips, ocr_data, tapes):
             'type': 'clip',
         }
     # Add tape labels as graph nodes.
-    # Duplicate labels are numbered top-to-bottom within each label group.
+    # Only accept valid tape label patterns: VT-*, AT-*, COT-*
+    # Reject false positives like MLCO01VT, MLCO01, etc. (bundle/junction annotations)
+    # Also reject any label containing '+' (OCR concatenation of multiple labels)
+    tape_pattern = re.compile(r'^(VT|AT)[-_]?[A-Z0-9]+$', re.IGNORECASE)
+    
     tape_counts = {}
     sorted_tapes = sorted(
         tapes,
@@ -187,9 +191,14 @@ def build_component_nodes(connectors, clips, ocr_data, tapes):
     )
 
     for tape in sorted_tapes:
+        label = tape['label'].upper()
+        
+        # Skip tapes that contain '+' (OCR concatenation) or don't match the known tape label pattern
+        if '+' in label or not tape_pattern.match(label):
+            continue
+        
         bx, by, bw, bh = tape['bbox']
         cx, cy = bx + bw // 2, by + bh // 2
-        label = tape['label'].upper()
 
         tape_counts[label] = tape_counts.get(label, 0) + 1
         node_id = f"Tape-{label}-{tape_counts[label]}"
@@ -208,6 +217,9 @@ def build_component_nodes(connectors, clips, ocr_data, tapes):
         txt, x, y, w, h = item[0], item[1], item[2], item[3], item[4]
         txt_clean = re.sub(r'[^A-Z0-9]$', '', str(txt).strip().upper())
         if not junction_pattern.match(txt_clean):
+            continue
+        # Skip any MLC label that contains tape-type suffixes (VT, AT, COT) or '+' (OCR junk)
+        if '+' in txt_clean or any(suffix in txt_clean for suffix in ['VT', 'AT', 'COT']):
             continue
         if txt_clean in nodes_dict:
             continue

@@ -25,6 +25,7 @@ from .detectors.connector_detector import detect_delphi_connectors
 from .detectors.clip_detector import detect_blue_clips
 from .detectors.length_detector import detect_wire_lengths
 from .detectors.wire_detector import detect_wires, filter_wires_by_components
+from .graph_builders.mask_tracer import trace_mask_connectivity
 
 # Import graph builder modules
 from .graph_builders.connectivity_builder import (
@@ -41,11 +42,11 @@ from .visualization.reporter import print_report, generate_verification_table
 
 # Import skeleton and connectivity modules
 from .component_masker import create_wire_mask
-from .skeleton_graph import (
-    skeletonize_wire_mask,
-    extract_skeleton_graph,
-    filter_skeleton_graph,
-)
+# from .skeleton_graph import (
+#     skeletonize_wire_mask,
+#     extract_skeleton_graph,
+#     filter_skeleton_graph,
+# )
 from .wiring_connectivity import (
     Component,
     Wire,
@@ -160,36 +161,27 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
                 tapes, connectors, clips, wires, lengths, img.shape, ocr_data
             )
         else:
-            print("Creating component mask ...")
+            print("Creating wire mask ...")
             wire_mask = create_wire_mask(gray, img, connectors, clips, tapes, ocr_data, lengths)
             cv2.imwrite('debug_wire_mask.png', wire_mask)
 
             nodes_dict = build_component_nodes(connectors, clips, ocr_data, tapes)
-            j20_hint = None
-            if 'J20' in nodes_dict:
-                j20_hint = (nodes_dict['J20']['x'], nodes_dict['J20']['y'])
 
-            print("Skeletonizing wire mask ...")
-            skeleton = skeletonize_wire_mask(
-                wire_mask,
-                j20_hint=j20_hint,
-                min_branch_length=10,
-            )
-            cv2.imwrite('debug_skeleton.png', (skeleton.astype(np.uint8) * 255))
-
-            print("Extracting skeleton graph ...")
-            raw_graph = extract_skeleton_graph(skeleton)
-            print(f"  {raw_graph.number_of_nodes()} nodes, {raw_graph.number_of_edges()} edges")
-
-            print("Filtering junctions ...")
-            filtered_graph = filter_skeleton_graph(raw_graph)
-            print(f"  {filtered_graph.number_of_nodes()} nodes, {filtered_graph.number_of_edges()} edges")
-
-            print("Mapping components to graph ...")
-            final_graph = map_components_to_graph(filtered_graph, nodes_dict, max_snap_distance=180)
+            print("Tracing wire blobs ...")
+            final_graph = trace_mask_connectivity(wire_mask, nodes_dict)
 
             print("Assigning wire properties ...")
             assign_wire_properties(final_graph, tapes, lengths)
+
+            if final_graph.number_of_edges() == 0:
+                print("    [WARN] Mask tracer produced no edges; falling back to legacy heuristic.")
+                wires = detect_wires(gray)
+                wires = filter_wires_by_components(wires, tapes + connectors + clips, ocr_data, margin=50)
+                connectivity_graph = build_connectivity_graph_heuristic(
+                    tapes, connectors, clips, wires, lengths, img.shape, ocr_data
+                )
+            else:
+                wires, connectivity_graph = convert_to_legacy_format(final_graph)
 
             if final_graph.number_of_edges() == 0:
                 print("    [WARN] Skeleton graph produced no component edges; falling back to legacy heuristic.")
