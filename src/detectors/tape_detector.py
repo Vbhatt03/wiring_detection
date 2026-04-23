@@ -6,7 +6,7 @@ import numpy as np
 from src.detectors.ocr_detector import ocr_region , ocr_upscaled
 
 TAPE_PATTERNS = re.compile(
-    r'(VT)\s*-\s*[A-Z]{1,2}|MLC\w+', re.IGNORECASE)
+    r'(VT|AT)\s*-\s*[A-Z]{1,2}', re.IGNORECASE)
 
 TAPE_COLOR_BGR = {
     'VT-WH':  (  0,   0, 180),   # dark red

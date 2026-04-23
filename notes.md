@@ -9,7 +9,7 @@ Each component type is detected via a dedicated detector module in `src/detector
 | Component | Script | Detection Method | Key Libraries |
 |-----------|--------|------------------|----------------|
 | **Text** | `ocr_detector.py` | PaddleOCR with upscaling | PaddleOCR |
-| **Tape Labels** | `tape_detector.py` | OCR text matching + regex patterns (VT-*, AT-*, MLC*) | OpenCV, regex |
+| **Tape Labels** | `tape_detector.py` | OCR text matching + regex patterns (VT-*, AT-*) | OpenCV, regex |
 | **Connectors** | `connector_detector.py` | Shape detection (rectangles w/ internal lines) + OCR "DELPHI" | OpenCV contours |
 | **Blue Clips** | `clip_detector.py` | HSV blue mask + HoughCircles (circular shapes) | OpenCV HSV/circles |
 | **Wire Lengths** | `length_detector.py` | Numeric OCR pattern matching + outlier filtering | PaddleOCR, regex |
@@ -23,13 +23,14 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 
 ### OCR Text Detection
 
-**Current Method**: `ocr_full()` - Single-pass PaddleOCR with basic angle calculation
+**Primary Method**: `ocr_full()` - Single-pass PaddleOCR for general text tokens (connector labels, junction IDs, tape prefixes)
 
-**Alternative Method**: `ocr_full_lengths()` - Two-pass specialized OCR for numeric annotations
+**Complementary Specialized Pass**: `ocr_full_lengths()` - Runs alongside `ocr_full()` for numeric-only annotations
 - **Pass 1**: 480px tiles at 0° (horizontal text) — catches most numeric labels
 - **Pass 2**: 320px tiles at 11 rotation angles [30°, 45°, 60°, 75°, 90°, 115°, 130°, 270°, 315°, 345°, 330°]
 - **Technique**: Image tiling + 2x upscaling to avoid PaddleOCR internal downscaling
-- **Use case**: Numeric wire length annotations that appear at various angles
+- **Use case**: Wire length annotations that appear at various angles
+- **Integration**: Results merged into `detect_tape_labels()` and fed exclusively to `detect_wire_lengths()`
 
 **Additional Helper**: `ocr_region()` - OCR a specific bounding box crop (used for re-checking detected regions)
 
@@ -37,17 +38,18 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 
 ### Tape Label Detection
 
-**Current Method**: Multi-pass OCR-driven approach
-- **Pass 1**: Direct token matching — single OCR tokens matching TAPE_PATTERNS regex (VT-*, AT-*, MLC*)
-- **Pass 3**: Region re-OCR — re-OCR crops around detected VT/AT prefix tokens with 60px rightward expansion
-
-**Legacy Method** (commented out): **Pass 2 - Token Reconstruction**
-- Merges nearby OCR tokens: "VT" + "BK" → "VT-BK"
-- Proximity check: 60px horizontal gap, 15px vertical alignment
-- **Why disabled**: Generated false positives from unrelated nearby text
-- **Code location**: Lines 60-92 in `tape_detector.py` (commented block)
-
-**Deduplication**: Proximity-based within 30px center distance using label name
+**Current Method**: Multi-source OCR with targeted re-OCR
+1. **Token aggregation**: Merges tokens from `ocr_full()`, `ocr_full_lengths()`, and `ocr_upscaled()` (3x upscaling for small text)
+   - Deduplicates by 10px center proximity
+2. **Direct regex matching**: `TAPE_PATTERNS = (VT|AT)\s*-\s*[A-Z]{1,2}`
+   - Catches full labels in single tokens: `VT-BK`, `VT-WH`, `VT-PK`, `AT-BK`, etc.
+   - Matches optional whitespace around hyphens
+3. **Region re-OCR**: For any token matching `^VT$|^AT$|^VT-$|^AT-$`
+   - Crops grayscale ±60px rightward expansion
+   - Re-OCRs crop with `ocr_region()` to catch split/missing fragments
+   - **Example**: Bare `AT` token triggers re-OCR → recovers full `AT-BK` label
+   - **Note**: `COT-BK` requires full string in OCR (no prefix trigger for region re-OCR)
+4. **Deduplication**: Proximity-based within 30px center distance; same label → keep first occurrence
 
 ---
 
@@ -89,61 +91,46 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 - Criteria: aspect ratio < 4.0, fill ratio > 0.25, area 80-8000px
 - **Purpose**: Create mask to prevent wires from incorrectly snapping to component edges
 
-**Merging Philosophy**: Endpoint graph (adjacency list) with BFS instead of Union-Find
-- **Advantage**: Explicit edges show merge candidates clearly
-- **Debugging**: Graph structure directly visualizable
-- **Flexibility**: Easy to add/modify merge criteria
-- **Complexity**: O(n²) pairwise testing acceptable for typical 5-30 segments
+---
+## Running the Pipeline (`run.py`)
 
-### Validation Challenges
+### Phases (all modes)
 
-- Ground truth difficult to obtain (requires manual labeling)
-- Different interpretations of "correct" edge for same diagram
-- Cascading errors from earlier phases
+| Phase | Step | Description |
+|-------|------|-------------|
+| 1 | OCR | `ocr_full()` (general text) + `ocr_full_lengths()` (numeric annotations, 11 rotation angles) |
+| 2 | Detection | Tape labels, connectors, clips, wire lengths (each gated by extract filters) |
+| 3 | Connectivity | Wire mask or wire blob detection → graph building (see below) |
+| 4 | Output | `wiring_diagram_annotated.png` + `connectivity_graph.json` |
 
 ---
 
-## Debugging Tips
+### Default (no flags) — Mask-Tracer Pipeline
 
-### Wire Not Detected
-
-**Diagnostics**:
-```python
-# Check wire mask
-cv2.imshow('Wire Mask', wire_mask)
-
-# Check after dilation
-cv2.imshow('Dilated', dilated_mask)
-
-# Check CCL labels
-labels = cv2.connectedComponentsWithStats(dilated_mask)[1]
-cv2.imshow('CCL Labels', labels.astype(np.uint8) * 10)
-
-# Check filtering
-print(f"Segments before filtering: {num_labels}")
-print(f"Segments after filtering: {len(valid_segments)}")
-```
-
-**Common Causes**:
-1. Wire color not in mask range (adjust inversion threshold)
-2. Component masking too aggressive (increase erase margin)
-3. Dilation not bridging gaps (increase kernel size/iterations)
-4. Merged with adjacent wire (reduce angle/proximity thresholds)
-
-### Component Snapping Wrong
-
-**Diagnostics**:
-```python
-# Visualize component snap points
-cv2.circle(img, snap_point, 5, (0, 255, 0), -1)
-
-# Print snap distances
-print(f"Snap to node: {dist_to_node}px at {nearest_node}")
-```
-
-**Common Causes**:
-1. Snap distance threshold too large
-2. Component detection failed (check HSV/shape parameters)
-3. Graph has no nodes nearby (check phase 3 output)
+1. `create_wire_mask()` — binary mask of wire pixels with component regions erased
+2. `build_component_nodes()` — flat dict of connectors, clips, tapes, junctions
+3. `trace_mask_connectivity()` — morphological closing → CCL noise removal → seed each component → multi-source BFS flood → wherever two labels meet = connection
+4. `assign_wire_properties()` — attaches `wire_type` and `length_mm` to each edge (80px proximity to path polyline)
+5. `convert_to_legacy_format()` — converts NetworkX graph to reporter format
+6. **Fallback**: if BFS produces 0 edges, automatically runs heuristic pipeline
 
 ---
+
+### `--legacy` — Heuristic Pipeline
+
+1. `detect_wires()` — 5-phase blob detector (HSV+Canny → CCL → PCA endpoints → endpoint graph → BFS merge)
+2. `filter_wires_by_components()` — drops wires with endpoints > 50px from any component
+3. `build_connectivity_graph_heuristic()`:
+   - Pass 1: project tape labels onto wire segments (80px perpendicular corridor)
+   - Pass 2 (tape-anchor): pair nodes via angle heuristic (>60° separation, <650px)
+   - Supplemental hardcoded edges: J20→Connector-1, J20→MLC001, J20→X519
+
+---
+
+### `--extract-only=<items>` / `--skip=<items>`
+
+Valid items: `tapes`, `connectors`, `wires`, `lengths`, `clips`
+
+- `--extract-only=tapes,connectors` — disables all detectors except those listed
+- `--skip=clips,lengths` — disables only those detectors; all others run
+- Both flags are composable with `--legacy`

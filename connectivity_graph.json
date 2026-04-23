@@ -43,16 +43,23 @@
       "type": "clip"
     },
     {
+      "id": "Tape-AT-BK-1",
+      "x": 934,
+      "y": 747,
+      "label": "AT-BK",
+      "type": "tape"
+    },
+    {
       "id": "Tape-VT-BK-1",
-      "x": 349,
-      "y": 339,
+      "x": 285,
+      "y": 329,
       "label": "VT-BK",
       "type": "tape"
     },
     {
       "id": "Tape-VT-BK-2",
-      "x": 301,
-      "y": 341,
+      "x": 349,
+      "y": 339,
       "label": "VT-BK",
       "type": "tape"
     },
@@ -113,7 +120,7 @@
       ],
       "from": "Connector-1",
       "to": "J20",
-      "length_mm": 452,
+      "length_mm": 137,
       "segment_count": 1,
       "endpoint_1": [
         673,
@@ -160,6 +167,24 @@
     },
     {
       "tapes": [
+        "VT-BK",
+        "VT-WH"
+      ],
+      "from": "Clip-1",
+      "to": "Tape-VT-BK-2",
+      "length_mm": 0,
+      "segment_count": 1,
+      "endpoint_1": [
+        429,
+        161
+      ],
+      "endpoint_2": [
+        349,
+        339
+      ]
+    },
+    {
+      "tapes": [
         "VT-WH"
       ],
       "from": "Clip-1",
@@ -173,28 +198,6 @@
       "endpoint_2": [
         495,
         250
-      ]
-    },
-    {
-      "tapes": [
-        "MLC001VT",
-        "MLCO01",
-        "MLCO01VT",
-        "MLCOO1VT",
-        "VT-BK",
-        "VT-WH"
-      ],
-      "from": "Clip-1",
-      "to": "Tape-VT-BK-1",
-      "length_mm": 0,
-      "segment_count": 1,
-      "endpoint_1": [
-        429,
-        161
-      ],
-      "endpoint_2": [
-        349,
-        339
       ]
     },
     {
@@ -216,28 +219,6 @@
     },
     {
       "tapes": [
-        "MLC001VT",
-        "MLCO01",
-        "MLCO01VT",
-        "MLCOO1VT",
-        "VT-BK",
-        "VT-PK"
-      ],
-      "from": "Clip-2",
-      "to": "Tape-VT-PK-2",
-      "length_mm": 50,
-      "segment_count": 1,
-      "endpoint_1": [
-        196,
-        163
-      ],
-      "endpoint_2": [
-        262,
-        248
-      ]
-    },
-    {
-      "tapes": [
         "VT-PK"
       ],
       "from": "Clip-2",
@@ -255,16 +236,119 @@
     },
     {
       "tapes": [
-        "MLC001VT",
-        "MLCO01",
-        "MLCO01VT",
-        "MLCOO1VT",
+        "VT-BK",
+        "VT-PK"
+      ],
+      "from": "Clip-2",
+      "to": "Tape-VT-PK-2",
+      "length_mm": 25,
+      "segment_count": 1,
+      "endpoint_1": [
+        196,
+        163
+      ],
+      "endpoint_2": [
+        262,
+        248
+      ]
+    },
+    {
+      "tapes": [
+        "AT-BK",
+        "VT-BK"
+      ],
+      "from": "Tape-AT-BK-1",
+      "to": "J20",
+      "length_mm": 137,
+      "segment_count": 1,
+      "endpoint_1": [
+        934,
+        747
+      ],
+      "endpoint_2": [
+        482,
+        685
+      ]
+    },
+    {
+      "tapes": [
+        "AT-BK",
+        "VT-BK"
+      ],
+      "from": "Tape-AT-BK-1",
+      "to": "Tape-VT-BK-4",
+      "length_mm": 452,
+      "segment_count": 1,
+      "endpoint_1": [
+        934,
+        747
+      ],
+      "endpoint_2": [
+        482,
+        739
+      ]
+    },
+    {
+      "tapes": [
+        "VT-BK",
+        "VT-PK"
+      ],
+      "from": "Tape-VT-BK-1",
+      "to": "Tape-VT-BK-2",
+      "length_mm": 0,
+      "segment_count": 1,
+      "endpoint_1": [
+        285,
+        329
+      ],
+      "endpoint_2": [
+        349,
+        339
+      ]
+    },
+    {
+      "tapes": [
         "VT-BK",
         "VT-PK"
       ],
       "from": "Tape-VT-BK-1",
       "to": "J20",
-      "length_mm": 137,
+      "length_mm": 100,
+      "segment_count": 1,
+      "endpoint_1": [
+        285,
+        329
+      ],
+      "endpoint_2": [
+        482,
+        685
+      ]
+    },
+    {
+      "tapes": [
+        "VT-BK",
+        "VT-PK"
+      ],
+      "from": "Tape-VT-BK-1",
+      "to": "Tape-VT-PK-2",
+      "length_mm": 0,
+      "segment_count": 1,
+      "endpoint_1": [
+        285,
+        329
+      ],
+      "endpoint_2": [
+        262,
+        248
+      ]
+    },
+    {
+      "tapes": [
+        "VT-BK"
+      ],
+      "from": "Tape-VT-BK-2",
+      "to": "J20",
+      "length_mm": 100,
       "segment_count": 1,
       "endpoint_1": [
         349,
@@ -277,37 +361,10 @@
     },
     {
       "tapes": [
-        "MLC001VT",
-        "MLCO01",
-        "MLCO01VT",
-        "MLCOO1VT",
         "VT-BK",
-        "VT-PK"
-      ],
-      "from": "Tape-VT-BK-1",
-      "to": "Tape-VT-BK-2",
-      "length_mm": 0,
-      "segment_count": 1,
-      "endpoint_1": [
-        349,
-        339
-      ],
-      "endpoint_2": [
-        301,
-        341
-      ]
-    },
-    {
-      "tapes": [
-        "MLC001VT",
-        "MLCO01",
-        "MLCO01VT",
-        "MLCOO1VT",
-        "VT-BK",
-        "VT-PK",
         "VT-WH"
       ],
-      "from": "Tape-VT-BK-1",
+      "from": "Tape-VT-BK-2",
       "to": "Tape-VT-WH-2",
       "length_mm": 0,
       "segment_count": 1,
@@ -318,28 +375,6 @@
       "endpoint_2": [
         495,
         250
-      ]
-    },
-    {
-      "tapes": [
-        "MLC001VT",
-        "MLCO01",
-        "MLCO01VT",
-        "MLCOO1VT",
-        "VT-BK",
-        "VT-PK"
-      ],
-      "from": "Tape-VT-BK-2",
-      "to": "Tape-VT-PK-2",
-      "length_mm": 0,
-      "segment_count": 1,
-      "endpoint_1": [
-        301,
-        341
-      ],
-      "endpoint_2": [
-        262,
-        248
       ]
     },
     {
@@ -361,10 +396,6 @@
     },
     {
       "tapes": [
-        "MLC001VT",
-        "MLCO01",
-        "MLCO01VT",
-        "MLCOO1VT",
         "VT-BK",
         "VT-PK"
       ],
@@ -409,28 +440,6 @@
       "endpoint_1": [
         482,
         739
-      ],
-      "endpoint_2": [
-        482,
-        685
-      ]
-    },
-    {
-      "tapes": [
-        "MLC001VT",
-        "MLCO01",
-        "MLCO01VT",
-        "MLCOO1VT",
-        "VT-BK",
-        "VT-PK"
-      ],
-      "from": "Tape-VT-PK-2",
-      "to": "J20",
-      "length_mm": 100,
-      "segment_count": 1,
-      "endpoint_1": [
-        262,
-        248
       ],
       "endpoint_2": [
         482,

@@ -647,6 +647,9 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
             if txt_clean in nodes_dict:
                 continue
             if junction_pattern.match(txt_clean):
+                # Skip any MLC label that contains tape-type suffixes (VT, AT, COT) or '+' (OCR junk)
+                if '+' in txt_clean or any(suffix in txt_clean for suffix in ['VT', 'AT', 'COT']):
+                    continue
                 junction_count += 1
                 nodes_dict[txt_clean] = {
                     'x': int(x + w // 2),
