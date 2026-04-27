@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Refactored Wiring Diagram Detector - Main Orchestrator
+Refactored Segment Diagram Detector - Main Orchestrator
 
-This script coordinates the detection of various elements in automotive wiring diagrams.
+This script coordinates the detection of various elements in automotive segment diagrams.
 It imports from specialized detector modules for clean separation of concerns.
 
 Usage:
     python -m src.run_detector automotive_schematic.png
-    python run_detector.py automotive_schematic.png [--legacy] [--extract-only=tapes,wires]
+    python run_detector.py automotive_schematic.png [--legacy] [--extract-only=tapes,segments]
 """
 
 import os
@@ -23,8 +23,8 @@ from .detectors.ocr_detector import ocr_full, PADDLEOCR_OK, ocr_full_dimensions
 from .detectors.tape_detector import detect_tape_labels, TAPE_COLOR_BGR
 from .detectors.connector_detector import detect_delphi_connectors
 from .detectors.clip_detector import detect_blue_clips
-from .detectors.dimension_detector import detect_wire_dimensions
-from .detectors.wire_detector import detect_wires, filter_wires_by_components
+from .detectors.dimension_detector import detect_segment_dimensions
+from .detectors.segment_detector import detect_segments, filter_segments_by_components
 from .graph_builders.mask_tracer import trace_mask_connectivity
 
 # Import graph builder modules
@@ -32,7 +32,7 @@ from .graph_builders.connectivity_builder import (
     build_connectivity_graph_heuristic,
     build_component_nodes,
     map_components_to_graph,
-    assign_wire_properties,
+    assign_segment_properties,
     convert_to_legacy_format,
 )
 
@@ -41,15 +41,15 @@ from .visualization.visualizer import annotate, draw_label
 from .visualization.reporter import print_report, generate_verification_table
 
 # Import skeleton and connectivity modules
-from .component_masker import create_wire_mask
+from .component_masker import create_segment_mask
 # from .skeleton_graph import (
-#     skeletonize_wire_mask,
+#     skeletonize_segment_mask,
 #     extract_skeleton_graph,
 #     filter_skeleton_graph,
 # )
-from .wiring_connectivity import (
+from .segment_connectivity import (
     Component,
-    Wire,
+    Segment,
     build_connectivity_graph,
     save_graph_to_json,
     print_connectivity_report,
@@ -67,7 +67,7 @@ def load(path):
 EXTRACT_FILTERS = {
     'tapes': True,
     'connectors': True,
-    'wires': True,
+    'segments': True,
     'dimensions': True,
     'clips': True,
 }
@@ -78,7 +78,7 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
     Main detection pipeline orchestrator.
     
     Args:
-        image_path: Path to wiring diagram image
+        image_path: Path to segment diagram image
         extract_filters: Dict specifying which elements to extract
         use_legacy: If True, use legacy heuristic pipeline instead of skeleton-based
         ocr_use_tiling: If False, OCR scans entire image without tiling. Default True.
@@ -145,70 +145,70 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
 
     dimensions = []
     if extract_filters.get('dimensions', True):
-        print("Detecting wire-dimension annotations ...")
-        dimensions = detect_wire_dimensions(ocr_dimensions, tapes, connectors)
+        print("Detecting segment-dimension annotations ...")
+        dimensions = detect_segment_dimensions(ocr_dimensions, tapes, connectors)
         print(f"  {len(dimensions)} dimension annotations")
 
-    # Phase 3: Wire Detection & Connectivity
-    wires = []
-    connectivity_graph = {'nodes': {}, 'edges': [], 'raw_edges': [], 'segment_tapes': {}}
+    # Phase 3: Segment Detection & Connectivity
+    segments = []
+    connectivity_graph = {'nodes': {}, 'segments': [], 'raw_traces': [], 'trace_tapes': {}}
     
-    if extract_filters.get('wires', True):
+    if extract_filters.get('segments', True):
         if use_legacy:
-            print("Detecting wires (legacy heuristic) ...")
-            wires = detect_wires(gray)
-            print(f"  {len(wires)} raw wire segments detected")
+            print("Detecting segments (legacy heuristic) ...")
+            segments = detect_segments(gray)
+            print(f"  {len(segments)} raw segment traces detected")
             print("Applying component-anchored validation ...")
-            wires = filter_wires_by_components(wires, tapes + connectors + clips, ocr_data, margin=50)
-            print(f"  {len(wires)} validated wires after anchoring to components")
+            segments = filter_segments_by_components(segments, tapes + connectors + clips, ocr_data, margin=50)
+            print(f"  {len(segments)} validated segments after anchoring to components")
             print("Building connectivity list (legacy heuristic) ...")
             connectivity_graph = build_connectivity_graph_heuristic(
-                tapes, connectors, clips, wires, dimensions, img.shape, ocr_data
+                tapes, connectors, clips, segments, dimensions, img.shape, ocr_data
             )
         else:
-            print("Creating wire mask ...")
-            wire_mask = create_wire_mask(gray, img, connectors, clips, tapes, ocr_data, dimensions)
-            cv2.imwrite('debug_wire_mask.png', wire_mask)
+            print("Creating segment mask ...")
+            segment_mask = create_segment_mask(gray, img, connectors, clips, tapes, ocr_data, dimensions)
+            cv2.imwrite('debug_segment_mask.png', segment_mask)
 
             nodes_dict = build_component_nodes(connectors, clips, ocr_data, tapes)
 
-            print("Tracing wire blobs ...")
-            final_graph = trace_mask_connectivity(wire_mask, nodes_dict)
+            print("Tracing segment blobs ...")
+            final_graph = trace_mask_connectivity(segment_mask, nodes_dict)
 
-            print("Assigning wire properties ...")
-            assign_wire_properties(final_graph, tapes, dimensions)
-
-            if final_graph.number_of_edges() == 0:
-                print("    [WARN] Mask tracer produced no edges; falling back to legacy heuristic.")
-                wires = detect_wires(gray)
-                wires = filter_wires_by_components(wires, tapes + connectors + clips, ocr_data, margin=50)
-                connectivity_graph = build_connectivity_graph_heuristic(
-                    tapes, connectors, clips, wires, dimensions, img.shape, ocr_data
-                )
-            else:
-                wires, connectivity_graph = convert_to_legacy_format(final_graph)
+            print("Assigning segment properties ...")
+            assign_segment_properties(final_graph, tapes, dimensions)
 
             if final_graph.number_of_edges() == 0:
-                print("        [WARN] Skeleton graph produced no component edges; falling back to legacy heuristic.")
-                wires = detect_wires(gray)
-                wires = filter_wires_by_components(wires, tapes + connectors + clips, ocr_data, margin=50)
+                print("    [WARN] Mask tracer produced no segments; falling back to legacy heuristic.")
+                segments = detect_segments(gray)
+                segments = filter_segments_by_components(segments, tapes + connectors + clips, ocr_data, margin=50)
                 connectivity_graph = build_connectivity_graph_heuristic(
-                    tapes, connectors, clips, wires, dimensions, img.shape, ocr_data
+                    tapes, connectors, clips, segments, dimensions, img.shape, ocr_data
                 )
             else:
-                wires, connectivity_graph = convert_to_legacy_format(final_graph)
+                segments, connectivity_graph = convert_to_legacy_format(final_graph)
+
+            if final_graph.number_of_edges() == 0:
+                print("        [WARN] Skeleton graph produced no component segments; falling back to legacy heuristic.")
+                segments = detect_segments(gray)
+                segments = filter_segments_by_components(segments, tapes + connectors + clips, ocr_data, margin=50)
+                connectivity_graph = build_connectivity_graph_heuristic(
+                    tapes, connectors, clips, segments, dimensions, img.shape, ocr_data
+                )
+            else:
+                segments, connectivity_graph = convert_to_legacy_format(final_graph)
     
     # Phase 4: Reporting
-    print_report(tapes, connectors, wires, dimensions, clips, connectivity_graph)
+    print_report(tapes, connectors, segments, dimensions, clips, connectivity_graph)
 
     if extract_filters.get('dimensions', True):
         generate_verification_table(dimensions, ocr_data, 
-                                   title="Wire Dimension Extraction Verification")
+                                   title="Segment Dimension Extraction Verification")
 
     # Phase 5: Output
-    annotated = annotate(img, tapes, connectors, wires,
+    annotated = annotate(img, tapes, connectors, segments,
                         dimensions, clips, connectivity_graph, extract_filters)
-    output_image_path = os.path.join(os.path.dirname(image_path) or '.', 'wiring_diagram_annotated.png')
+    output_image_path = os.path.join(os.path.dirname(image_path) or '.', 'segment_diagram_annotated.png')
     cv2.imwrite(output_image_path, annotated)
     print(f"\nAnnotated image saved: {output_image_path}")
 
@@ -234,18 +234,19 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
             }
             for nid, ninfo in connectivity_graph['nodes'].items()
         ],
-        'edges': [
+        'segments': [
             {
-                'tapes': e.get('wire_types', e.get('tapes', [])),
+                'tapes': e.get('segment_types', e.get('tapes', [])),
                 'from': e['node_a'],
                 'to': e['node_b'],
                 'dimension_mm': e['dimension_mm'],
-                'segment_count': e.get('segment_count', 1),
-                'endpoint_1': [int(e['segments'][0]['p1'][0]), int(e['segments'][0]['p1'][1])] if e.get('segments') else [0, 0],
-                'endpoint_2': [int(e['segments'][0]['p2'][0]), int(e['segments'][0]['p2'][1])] if e.get('segments') else [0, 0]
+                'trace_count': e.get('trace_count', 1),
+                'endpoint_1': [int(e['traces'][0]['p1'][0]), int(e['traces'][0]['p1'][1])] if e.get('traces') else [0, 0],
+                'endpoint_2': [int(e['traces'][0]['p2'][0]), int(e['traces'][0]['p2'][1])] if e.get('traces') else [0, 0]
             }
-            for e in connectivity_graph['edges']
-        ]
+            for e in connectivity_graph['segments']
+        ],
+        'routes': []
     }
     json_path = 'connectivity_graph.json'
     with open(json_path, 'w') as f:

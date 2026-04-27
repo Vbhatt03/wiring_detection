@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Wire Detection Diagram Analyzer - Root Entry Point
+Segment Detection Diagram Analyzer - Root Entry Point
 
-Run the wiring diagram detector from the root directory.
+Run the segment diagram detector from the root directory.
 
 Usage:
     python run.py automotive_schematic.png

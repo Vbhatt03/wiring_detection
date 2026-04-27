@@ -1,4 +1,4 @@
-"""Tape label detection module for wiring diagrams."""
+"""Tape label detection module for segment diagrams."""
 
 import re
 import cv2

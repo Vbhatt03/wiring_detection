@@ -1,15 +1,15 @@
 """
 Connectivity Graph Builder
 ===========================
-Builds the final connectivity graph from wire segments and components.
+Builds the final connectivity graph from segment segments and components.
 
 Functions:
-- merge_edges_by_component_pair: Group edges with same component pair
+- merge_segments_by_component_pair: Group segments with same component pair
 - build_connectivity_graph_heuristic: Legacy heuristic-based graph building
-- classify_wire: Classify tape label to verbose wire type string
+- classify_segment: Classify tape label to verbose segment type string
 - build_component_nodes: Build node dictionary from detected components
 - map_components_to_graph: Map named components to skeleton graph nodes
-- assign_wire_properties: Assign wire type and length to skeleton edges
+- assign_segment_properties: Assign segment type and length to skeleton edges
 - convert_to_legacy_format: Convert NetworkX graph to legacy output format
 - Helper functions: _point_to_segment_distance, _nearest_graph_node, etc.
 """
@@ -19,48 +19,48 @@ import numpy as np
 import networkx as nx
 
 
-def merge_edges_by_component_pair(raw_edges, nodes_dict=None):
+def merge_segments_by_component_pair(raw_traces, nodes_dict=None):
     """
-    ═══ Phase 2: Component-to-Component Edge Merging ═══
+    ═══ Phase 2: Component-to-Component Segment Merging ═══
     
     Groups all edges with the same (node_a, node_b) component pair
     and merges them into a single logical connection.
     
     Strategy:
     1. Group edges by (node_a, node_b) key
-    2. For each group, collect all tape types and wire info
+    2. For each group, collect all tape types and segment info
     3. Pick primary dimension from highest-confidence detection
     4. Return list of merged edges
     
     Args:
-        raw_edges: List of segment edges, each with:
+        raw_edges: List of traces, each with:
                    node_a, node_b, tapes, dimension_mm, p1, p2, snapped_a, snapped_b
         nodes_dict: Mapping of node_id to node info (used for junction detection)
     
     Returns:
-        List of merged edges grouped by component pairs
+        List of merged segments grouped by component pairs
     """
     if nodes_dict is None:
         nodes_dict = {}
     # Group edges by (node_a, node_b) key
-    edge_groups = {}
+    segment_groups = {}
     
-    for edge in raw_edges:
+    for trace in raw_traces:
         # Skip edges with missing component endpoints
-        if edge['node_a'] is None or edge['node_b'] is None:
+        if trace['node_a'] is None or trace['node_b'] is None:
             continue
         
         # Create key: SORTED so A→B and B→A collapse to the same edge
-        key = tuple(sorted([edge['node_a'], edge['node_b']]))
+        key = tuple(sorted([trace['node_a'], trace['node_b']]))
         
-        if key not in edge_groups:
-            edge_groups[key] = []
-        edge_groups[key].append(edge)
+        if key not in segment_groups:
+            segment_groups[key] = []
+        segment_groups[key].append(trace)
     
     # Merge edges within each group
-    merged_edges = []
+    merged_segments = []
     
-    for (node_a, node_b), edges_in_group in edge_groups.items():
+    for (node_a, node_b), traces_in_group in segment_groups.items():
         # Skip all self-loops (including junctions — J20→J20 are always detection artifacts)
         if node_a == node_b:
             continue
@@ -72,47 +72,47 @@ def merge_edges_by_component_pair(raw_edges, nodes_dict=None):
             continue
         # Collect all unique tapes across this group
         all_tapes = set()
-        for edge in edges_in_group:
-            all_tapes.update(edge['tapes'])
+        for trace in traces_in_group:
+            all_tapes.update(trace['tapes'])
         
         # Pick primary dimension:
-        # Prefer tape-anchor sources (more reliable) over wire-blob sources.
+        # Prefer tape-anchor sources (more reliable) over segment-blob sources.
         # Among same source, prefer non-None values.
         primary_dimension = None
         # First pass: tape_anchor sources
-        for edge in edges_in_group:
-            if edge.get('source') == 'tape_anchor' and edge.get('dimension_mm') is not None:
-                primary_dimension = edge['dimension_mm']
+        for trace in traces_in_group:
+            if trace.get('source') == 'tape_anchor' and trace.get('dimension_mm') is not None:
+                primary_dimension = trace['dimension_mm']
                 break
         # Second pass: any source
         if primary_dimension is None:
-            for edge in edges_in_group:
-                if edge.get('dimension_mm') is not None:
-                    primary_dimension = edge['dimension_mm']
+            for trace in traces_in_group:
+                if trace.get('dimension_mm') is not None:
+                    primary_dimension = trace['dimension_mm']
                     break
         
         # Create merged edge
-        merged_edge = {
+        merged_segment = {
             'node_a': node_a,
             'node_b': node_b,
-            'wire_types': sorted(all_tapes),  # Unique tape types
+            'segment_types': sorted(all_tapes),  # Unique tape types
             'dimension_mm': primary_dimension,
-            'segment_count': len(edges_in_group),  # How many segments make up this connection
-            'segments': edges_in_group,  # Keep reference to individual segments for detail
-            'snapped': any(edge.get('snapped_a', False) or edge.get('snapped_b', False) 
-                          for edge in edges_in_group)  # Flag if any endpoint was snapped
+            'trace_count': len(traces_in_group),  # How many segments make up this connection
+            'traces': traces_in_group,  # Keep reference to individual segments for detail
+            'snapped': any(trace.get('snapped_a', False) or trace.get('snapped_b', False) 
+                          for trace in traces_in_group)  # Flag if any endpoint was snapped
         }
         
-        merged_edges.append(merged_edge)
+        merged_segments.append(merged_segment)
     
     # Debug output
-    print(f"    [Edge Merging] Raw edges: {len(raw_edges)} → Merged connections: {len(merged_edges)}")
+    print(f"    [Segment Merging] Raw traces: {len(raw_traces)} → Merged connections: {len(merged_segments)}")
     
-    return merged_edges
+    return merged_segments
 
 
-def classify_wire(label):
-    """Return verbose classification string for a wire label."""
+def classify_segment(label):
+    """Return verbose classification string for a segment label."""
     label = label.upper()
     if label in ('VT-BK',):
         return 'Solid black (VT-BK)'
@@ -317,16 +317,16 @@ def _distance_point_to_polyline(point, polyline):
 
 
 def map_components_to_graph(skeleton_graph, components_dict, max_snap_distance=180):
-    """Map named components to nearest skeleton nodes, preferring the main wire CC.
+    """Map named components to nearest skeleton nodes, preferring the main segment CC.
 
-    The skeleton contains the wire network (largest connected component) PLUS
+    The skeleton contains the segment network (largest connected component) PLUS
     noise fragments from text, detail drawings, etc.  We always try to snap
     components to the largest CC first; only fall back to any CC if the main
     one has nothing within range.
     """
     g = skeleton_graph.copy()
 
-    # ----- Identify the largest connected component (main wire network) -----
+    # ----- Identify the largest connected component (main segment network) -----
     ug = nx.Graph(g)  # undirected view for CC detection
     ccs = sorted(nx.connected_components(ug), key=len, reverse=True)
     main_cc = ccs[0] if ccs else set()
@@ -475,15 +475,15 @@ def map_components_to_graph(skeleton_graph, components_dict, max_snap_distance=1
                 a, b,
                 path_pts=path_pts,
                 path_length_px=length_px,
-                wire_type=None,
+                segment_type=None,
                 dimension_mm=None,
             )
 
     return final_graph
 
 
-def assign_wire_properties(graph, tapes, dimensions):
-    """Assign wire type and dimension using nearest tape and dimension annotations."""
+def assign_segment_properties(graph, tapes, dimensions):
+    """Assign segment type and dimension using nearest tape and dimension annotations."""
     for u, v, attrs in graph.edges(data=True):
         pts = attrs.get('path_pts', [])
 
@@ -496,7 +496,7 @@ def assign_wire_properties(graph, tapes, dimensions):
                 tape_hits.append((d, tape['label']))
         tape_hits.sort(key=lambda x: x[0])
         if tape_hits:
-            attrs['wire_type'] = '+'.join(sorted(set([t[1] for t in tape_hits])))
+            attrs['segment_type'] = '+'.join(sorted(set([t[1] for t in tape_hits])))
 
         best_len = None
         best_dist = 80.0
@@ -512,8 +512,8 @@ def assign_wire_properties(graph, tapes, dimensions):
 
 def convert_to_legacy_format(graph):
     """Convert NetworkX component graph to existing report/annotation structure."""
-    wires = []
-    edges = []
+    physical_segments = []
+    logical_segments = []
 
     nodes_dict = {}
     for nid, attrs in graph.nodes(data=True):
@@ -528,23 +528,23 @@ def convert_to_legacy_format(graph):
         path_pts = attrs.get('path_pts', [])
         p1 = path_pts[0] if path_pts else (nodes_dict[u]['x'], nodes_dict[u]['y'])
         p2 = path_pts[-1] if path_pts else (nodes_dict[v]['x'], nodes_dict[v]['y'])
-        wires.append({
+        physical_segments.append({
             'p1': (int(p1[0]), int(p1[1])),
             'p2': (int(p2[0]), int(p2[1])),
             'length_px': int(round(attrs.get('path_length_px', 0))),
-            'segment_count': 1,
+            'trace_count': 1,
             'type': 'merged',
         })
-        wire_types = []
-        if attrs.get('wire_type'):
-            wire_types = str(attrs.get('wire_type')).split('+')
-        edges.append({
+        segment_types = []
+        if attrs.get('segment_type'):
+            segment_types = str(attrs.get('segment_type')).split('+')
+        logical_segments.append({
             'node_a': u,
             'node_b': v,
-            'wire_types': wire_types,
+            'segment_types': segment_types,
             'dimension_mm': attrs.get('dimension_mm'),
-            'segment_count': 1,
-            'segments': [{
+            'trace_count': 1,
+            'traces': [{
                 'p1': (int(p1[0]), int(p1[1])),
                 'p2': (int(p2[0]), int(p2[1])),
             }],
@@ -553,34 +553,34 @@ def convert_to_legacy_format(graph):
 
     connectivity_graph = {
         'nodes': nodes_dict,
-        'edges': edges,
-        'raw_edges': edges,
-        'segment_tapes': {},
+        'segments': logical_segments,
+        'raw_traces': logical_segments,
+        'trace_tapes': {},
     }
-    return wires, connectivity_graph
+    return physical_segments, connectivity_graph
 
 
-def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, lengths, img_shape, ocr_data=None):
+def build_connectivity_graph_heuristic(tape_labels, connectors, clips, segments, lengths, img_shape, ocr_data=None):
     """
-    Build a connectivity graph by tracing wire segments (LEGACY HEURISTIC METHOD).
+    Build a connectivity graph by tracing segment segments (LEGACY HEURISTIC METHOD).
     
     Strategy:
     1. For each dash-dot segment, find which tape labels are on it
     2. Group tape labels that are on the same segment
     3. For each segment, find endpoints and map to actual nodes
-    4. Build edges showing: Node A --[wire type, length]--> Node B
+    4. Build edges showing: Node A --[segment type, length]--> Node B
     5. Detect junction points from text labels (J20, J30, etc.)
     
     Args:
         tape_labels: Detected tape labels
         connectors: Detected Delphi connectors
         clips: Detected blue circular clips
-        wires: Detected wire segments
+        segments: Detected segment segments
         lengths: Detected length annotations
         img_shape: Image dimensions
         ocr_data: OCR text detections (for junction point extraction)
     
-    Returns: dict with 'nodes' (list of nodes) and 'edges' (list of connections)
+    Returns: dict with 'nodes' (list of nodes) and 'segments' (list of connections)
     """
     if ocr_data is None:
         ocr_data = []
@@ -684,47 +684,47 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
     if junction_count > 0:
         print(f"    [Junctions] Detected {junction_count} junction/conduit points")
     
-    # For each wire segment, find which tapes are on it
-    segment_tapes = {}  # segment_idx -> list of tape info
+    # For each segment segment, find which tapes are on it
+    trace_tapes = {}  # segment_idx -> list of tape info
     
-    # Filter to only detected wires (with 'p1' and 'p2' endpoints) - hough, CCL-PCA, or merged
-    detected_wires = [w for w in wires if w['type'] in ('hough', 'ccl_pca', 'merged', 'segment')]
+    # Filter to only detected segments (with 'p1' and 'p2' endpoints) - hough, CCL-PCA, or merged
+    detected_segments = [w for w in segments if w['type'] in ('hough', 'ccl_pca', 'merged', 'segment')]
     
-    for seg_idx, seg in enumerate(detected_wires):
-        p1 = np.array(seg['p1'])
-        p2 = np.array(seg['p2'])
-        seg_vec = p2 - p1
-        seg_len = np.linalg.norm(seg_vec)
-        if seg_len < 1:
+    for trace_idx, trace in enumerate(detected_segments):
+        p1 = np.array(trace['p1'])
+        p2 = np.array(trace['p2'])
+        trace_vec = p2 - p1
+        trace_len = np.linalg.norm(trace_vec)
+        if trace_len < 1:
             continue
-        seg_unit = seg_vec / seg_len
+        trace_unit = trace_vec / trace_len
         
-        tapes_on_segment = []
+        tapes_on_trace = []
         for tape in tape_labels:
             bx, by, bw, bh = tape['bbox']
             tape_center = np.array([bx + bw//2, by + bh//2])
             
             # Project tape center onto segment line
             to_tape = tape_center - p1
-            proj_dist = np.dot(to_tape, seg_unit)
+            proj_dist = np.dot(to_tape, trace_unit)
             
             # Check if projection is within segment bounds
-            if 0 <= proj_dist <= seg_len:
+            if 0 <= proj_dist <= trace_len:
                 # Calculate perpendicular distance
-                proj_point = p1 + proj_dist * seg_unit
+                proj_point = p1 + proj_dist * trace_unit
                 perp_dist = np.linalg.norm(tape_center - proj_point)
                 
                 # Include tape if it's close to the segment (within 80px perpendicular distance)
-                # Wider corridor to catch tapes on COT-BK/double-line wires
+                # Wider corridor to catch tapes on COT-BK/double-line segments
                 if perp_dist < 80:
-                    tapes_on_segment.append({
+                    tapes_on_trace.append({
                         'label': tape['label'],
                         'proj_dist': proj_dist,
                         'perp_dist': perp_dist
                     })
         
-        if tapes_on_segment:
-            segment_tapes[seg_idx] = tapes_on_segment
+        if tapes_on_trace:
+            trace_tapes[trace_idx] = tapes_on_trace
     
     # Find nearest node to segment endpoints
     def find_nearest_node(point, strict_thresh=30, loose_thresh=200):
@@ -749,15 +749,15 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
         else:
             return (None, min_dist, False)     # Too far, unmatched
     
-    # Build edges from wire segments (raw: one edge per segment)
-    raw_edges = []
+    # Build edges from segment segments (raw: one edge per segment)
+    raw_traces = []
     
-    for seg_idx, seg in enumerate(detected_wires):
-        # Process ALL wires, not just those with visible tape labels
-        # Many wires don't have explicit tape marks but still create real connections
-        tapes = segment_tapes.get(seg_idx, [])
-        p1 = seg['p1']
-        p2 = seg['p2']
+    for trace_idx, trace in enumerate(detected_segments):
+        # Process ALL segments, not just those with visible tape labels
+        # Many segments don't have explicit tape marks but still create real connections
+        tapes = trace_tapes.get(trace_idx, [])
+        p1 = trace['p1']
+        p2 = trace['p2']
         
         # Find endpoints using hybrid approach
         node_a_result = find_nearest_node(p1)
@@ -768,9 +768,9 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
         snapped_a = node_a_result[2]
         snapped_b = node_b_result[2]
         
-        # Get wire properties from tape labels on this segment (if available)
+        # Get segment properties from tape labels on this segment (if available)
         # If no tapes found, use 'Unknown' as placeholder so edge is still created
-        segment_info = {
+        trace_info = {
             'tapes': [t['label'] for t in tapes] if tapes else ['Unknown'],
             'tapes_sorted': sorted(tapes, key=lambda t: t['proj_dist']) if tapes else [],
             'p1': p1,
@@ -784,17 +784,17 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
         # Find length for this segment using point-to-segment distance (more accurate)
         p1_arr = np.array(p1, dtype=float)
         p2_arr = np.array(p2, dtype=float)
-        seg_vec_l = p2_arr - p1_arr
-        seg_len_sq = float(np.dot(seg_vec_l, seg_vec_l))
+        trace_vec_l = p2_arr - p1_arr
+        trace_len_sq = float(np.dot(trace_vec_l, trace_vec_l))
         nearest_length = None
         min_len_dist = float('inf')
         for ln in lengths:
             lbx, lby, lbw, lbh = ln['bbox']
             lpt = np.array([lbx + lbw / 2, lby + lbh / 2], dtype=float)
-            if seg_len_sq > 0:
-                t = float(np.dot(lpt - p1_arr, seg_vec_l) / seg_len_sq)
+            if trace_len_sq > 0:
+                t = float(np.dot(lpt - p1_arr, trace_vec_l) / trace_len_sq)
                 t = max(0.0, min(1.0, t))
-                proj = p1_arr + t * seg_vec_l
+                proj = p1_arr + t * trace_vec_l
             else:
                 proj = p1_arr
             dist = float(np.linalg.norm(lpt - proj))
@@ -802,16 +802,16 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
                 min_len_dist = dist
                 nearest_length = ln['value']
         
-        segment_info['dimension_mm'] = nearest_length
+        trace_info['dimension_mm'] = nearest_length
         
-        raw_edges.append(segment_info)
+        raw_traces.append(trace_info)
     
     # ═══ Phase 2: Tape-Anchored Edge Second Pass ═══
-    # For wires the blob-tracer missed, derive edges directly from tape label positions.
+    # For segments the blob-tracer missed, derive traces directly from tape label positions.
     # For each tape label, find the closest node (node_a) and then the closest node
     # on the OPPOSITE SIDE (angle > 60°). Clips are not paired with other clips —
     # they must connect to a connector or junction to prevent spurious Clip↔Clip edges.
-    tape_pass_edges = []
+    tape_pass_traces = []
     for tape in tape_labels:
         tbx, tby, tbw, tbh = tape['bbox']
         tcx, tcy = float(tbx + tbw // 2), float(tby + tbh // 2)
@@ -844,7 +844,7 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
             if dist_b > 650:
                 break
             type_b = nodes_dict[nid_b_cand]['type']
-            # Skip: clip↔clip pairing (they don't directly wire to each other here)
+            # Skip: clip↔clip pairing (they don't directly segment to each other here)
             if type_a == 'clip' and type_b == 'clip':
                 continue
             len_b = dist_b + 1e-9
@@ -864,7 +864,7 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
             continue
 
         # Find length annotation closest to tape label (within 250px).
-        # Skip val==0: those are junction tap-off markers, not actual wire lengths.
+        # Skip val==0: those are junction tap-off markers, not actual segment lengths.
         tape_length = None
         min_tape_len_dist = 250.0
         for ln in lengths:
@@ -877,7 +877,7 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
                 min_tape_len_dist = d
                 tape_length = ln['value']
 
-        tape_pass_edges.append({
+        tape_pass_traces.append({
             'tapes': [tape['label']],
             'tapes_sorted': [],
             'p1': (int(tcx), int(tcy)),
@@ -890,7 +890,7 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
             'source': 'tape_anchor'
         })
 
-    print(f"    [TapePass] {len(tape_pass_edges)} tape-anchored candidate edges built")
+    print(f"    [TapePass] {len(tape_pass_traces)} tape-anchored candidate edges built")
 
     # ─────── Supplemental edges: connections with no tape label in the diagram ───────
     # These are derived from length annotation positions paired with known topology.
@@ -970,18 +970,18 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
 
     if supplemental:
         print(f"    [Supplemental] {len(supplemental)} topology-derived edges added")
-    tape_pass_edges.extend(supplemental)
+    tape_pass_traces.extend(supplemental)
 
     # Put tape-anchor edges FIRST so the merge step's source-preference picks them
-    # over wire-blob edges when both refer to the same node pair.
-    all_raw_edges = tape_pass_edges + raw_edges
+    # over segment-blob edges when both refer to the same node pair.
+    all_raw_traces = tape_pass_traces + raw_traces
 
     # ═══ Phase 3: Merge edges by component pair (node_a, node_b) ═══
-    edges = merge_edges_by_component_pair(all_raw_edges, nodes_dict)
+    segments = merge_segments_by_component_pair(all_raw_traces, nodes_dict)
 
     return {
         'nodes': nodes_dict,
-        'edges': edges,
-        'raw_edges': all_raw_edges,
-        'segment_tapes': segment_tapes
+        'segments': segments,
+        'raw_traces': all_raw_traces,
+        'trace_tapes': trace_tapes
     }

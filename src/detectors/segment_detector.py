@@ -1,14 +1,14 @@
 """
-Wire Detection
+Segment Detection
 ==============
-Detects individual wire segments in the schematic using Connected Components Labeling (CCL)
+Detects individual segment traces in the schematic using Connected Components Labeling (CCL)
 with PCA-based endpoint extraction and Union-Find based merging.
 
 Strategy:
     PHASE A (Component Detection): Detect filled blobs (components, clips)
-    PHASE B (Wire Segment Extraction): Use CCL to find wire segments
-    PHASE C (Union-Find Merging): Merge collinear/parallel segments
-    PHASE D (Wire Reconstruction): Collect merged groups and output final wires
+    PHASE B (Segment Trace Extraction): Use CCL to find segment traces
+    PHASE C (Union-Find Merging): Merge collinear/parallel traces
+    PHASE D (Segment Reconstruction): Collect merged groups and output final segments
 """
 
 import cv2
@@ -17,9 +17,9 @@ import numpy as np
 
 def detect_components(gray, img_color):
     """
-    Detect component bounding boxes so we can use them as wire-break boundaries.
+    Detect component bounding boxes so we can use them as segment-break boundaries.
     Returns list of (x, y, w, h) bboxes.
-    Strategy: find closed, filled, non-elongated blobs — opposite of wires.
+    Strategy: find closed, filled, non-elongated blobs — opposite of segments.
     """
     # Threshold to binary
     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
@@ -38,25 +38,25 @@ def detect_components(gray, img_color):
             continue
         aspect = max(w, h) / max(min(w, h), 1)
         fill_ratio = area / (w * h)
-        # Components are squarish and dense; wires are elongated/sparse
+        # Components are squarish and dense; segments are elongated/sparse
         if aspect < 4.0 and fill_ratio > 0.25 and min(w, h) > 8:
             component_bboxes.append((x, y, w, h))
 
     return component_bboxes
 
 
-def segment_crosses_component(p1, p2, component_bboxes, margin=4):
+def trace_crosses_component(p1, p2, component_bboxes, margin=4):
     """
     Check if the straight line from p1 to p2 passes through any component bbox.
     Uses parametric line sampling.
     
     Args:
-        p1, p2: (x, y) endpoints of the line segment
+        p1, p2: (x, y) endpoints of the line trace
         component_bboxes: List of (x, y, w, h) bounding boxes
         margin: Pixel margin around each bbox to consider as "crossing"
     
     Returns:
-        True if the segment crosses any component, False otherwise
+        True if the trace crosses any component, False otherwise
     """
     x1, y1 = p1
     x2, y2 = p2
@@ -79,29 +79,29 @@ def angle_between(p1, p2):
     return np.degrees(np.arctan2(dy, dx)) % 180
 
 
-def detect_wires(gray):
+def detect_segments(gray):
     """
-    Wire detection with Union-Find based segment merging.
+    Segment detection with Union-Find based trace merging.
     
     Strategy:
     PHASE A (Component Detection):
     1. Detect filled blobs (components like connectors, clips) and create a mask
     
-    PHASE B (Wire Segment Extraction):
-    2. Create wire mask (dark + edges), remove component regions
-    3. Use Connected Components Labeling (CCL) to find wire segments
-    4. Extract endpoints using PCA for each segment
+    PHASE B (Segment Trace Extraction):
+    2. Create segment mask (dark + edges), remove component regions
+    3. Use Connected Components Labeling (CCL) to find segment traces
+    4. Extract endpoints using PCA for each trace
     
     PHASE C (Union-Find Merging):
-    5. Build Union-Find structure and merge segments based on:
+    5. Build Union-Find structure and merge traces based on:
        - Proximity: endpoints < 30px apart
        - Collinearity: angle difference < 15°
        - Component blocking: gaps don't cross components
     
-    PHASE D (Wire Reconstruction):
-    6. Collect merged groups, find true terminals, output final wires
+    PHASE D (Segment Reconstruction):
+    6. Collect merged groups, find true terminals, output final segments
     
-    This method correctly handles dashed wires and respects component boundaries.
+    This method correctly handles dashed segments and respects component boundaries.
     """
     
     img_color = cv2.imread('automotive_schematic.png')
@@ -113,30 +113,30 @@ def detect_wires(gray):
     # ────────────────────────────────────────────────────────────
     component_bboxes = detect_components(gray, img_color)
 
-    # Build a component mask so we can subtract it from the wire mask
+    # Build a component mask so we can subtract it from the segment mask
     comp_mask = np.zeros(gray.shape, dtype=np.uint8)
     for (x, y, w, h) in component_bboxes:
         cv2.rectangle(comp_mask, (x, y), (x + w, y + h), 255, -1)
 
     # ────────────────────────────────────────────────────────────
-    # PHASE B: Wire Segment Extraction
+    # PHASE B: Segment Trace Extraction
     # ────────────────────────────────────────────────────────────
     
-    # Wire mask: dark pixels + edges
+    # Segment mask: dark pixels + edges
     hsv = cv2.cvtColor(img_color, cv2.COLOR_BGR2HSV)
     lower_dark = np.array([0, 0, 0])
     upper_dark = np.array([180, 100, 150])  # Lenient dark mask
     color_mask = cv2.inRange(hsv, lower_dark, upper_dark)
 
     edges = cv2.Canny(gray, 30, 100, apertureSize=3)
-    wire_mask = cv2.bitwise_and(color_mask, edges)
+    segment_mask = cv2.bitwise_and(color_mask, edges)
 
-    # Remove component regions from wire mask — this is the KEY BREAK
-    wire_mask = cv2.bitwise_and(wire_mask, cv2.bitwise_not(comp_mask))
+    # Remove component regions from segment mask — this is the KEY BREAK
+    segment_mask = cv2.bitwise_and(segment_mask, cv2.bitwise_not(comp_mask))
 
     # Gap filling: dilate and clean up
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
-    bridged_mask = cv2.dilate(wire_mask, kernel, iterations=2)
+    bridged_mask = cv2.dilate(segment_mask, kernel, iterations=2)
     kernel_small = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
     bridged_mask = cv2.morphologyEx(bridged_mask, cv2.MORPH_CLOSE, kernel_small, iterations=1)
     bridged_mask = cv2.morphologyEx(bridged_mask, cv2.MORPH_OPEN, kernel_small, iterations=1)
@@ -149,8 +149,8 @@ def detect_wires(gray):
         bridged_mask, connectivity=8, ltype=cv2.CV_32S
     )
 
-    # Collect raw segments with PCA endpoints
-    raw_segments = []
+    # Collect raw traces with PCA endpoints
+    raw_traces = []
     for label_id in range(1, num_labels):
         x, y, w, h, area = stats[label_id]
         if area < 20 or area > 6000:
@@ -180,7 +180,7 @@ def detect_wires(gray):
         if length < 15:
             continue
 
-        raw_segments.append({
+        raw_traces.append({
             'p1': tuple(p1.astype(int)),
             'p2': tuple(p2.astype(int)),
             'length': length,
@@ -188,50 +188,50 @@ def detect_wires(gray):
             'axis': primary_axis,
         })
 
-    if not raw_segments:
+    if not raw_traces:
         return []
 
     # ────────────────────────────────────────────────────────────
     # PHASE C: Hybrid Graph-Based Merging (improved approach)
     # ────────────────────────────────────────────────────────────
-    n = len(raw_segments)
+    n = len(raw_traces)
     
     # Build endpoint graph: connect endpoints that should be merged
-    GAP_THRESH = 100  # px — allow very long gaps in dashed/segmented wires
+    GAP_THRESH = 100  # px — allow very long gaps in dashed/traceed segments
     ANGLE_THRESH = 45  # degrees — allow wide angle variations
     
     # Create adjacency graph: endpoint_id -> list of connected endpoints
-    endpoint_graph = {}  # (seg_idx, ep_type) -> [(seg_idx, ep_type), ...]
+    endpoint_graph = {}  # (trace_idx, ep_type) -> [(trace_idx, ep_type), ...]
     
-    # For each segment, create node IDs for its endpoints
-    segment_endpoints = {}  # seg_idx -> {'p1_idx': 0, 'p2_idx': 1}
+    # For each trace, create node IDs for its endpoints
+    trace_endpoints = {}  # trace_idx -> {'p1_idx': 0, 'p2_idx': 1}
     for i in range(n):
-        segment_endpoints[i] = {'p1_idx': (i, 'p1'), 'p2_idx': (i, 'p2')}
+        trace_endpoints[i] = {'p1_idx': (i, 'p1'), 'p2_idx': (i, 'p2')}
         endpoint_graph[(i, 'p1')] = []
         endpoint_graph[(i, 'p2')] = []
     
-    # Test all pairs of segments and connect compatible endpoints
-    segment_pairs_tested = set()
+    # Test all pairs of traces and connect compatible endpoints
+    trace_pairs_tested = set()
     
     for i in range(n):
         for j in range(i + 1, n):
-            if (i, j) in segment_pairs_tested:
+            if (i, j) in trace_pairs_tested:
                 continue
-            segment_pairs_tested.add((i, j))
+            trace_pairs_tested.add((i, j))
             
-            seg_i = raw_segments[i]
-            seg_j = raw_segments[j]
+            trace_i = raw_traces[i]
+            trace_j = raw_traces[j]
             
-            # Precompute angles once per segment
-            angle_i = np.degrees(np.arctan2(seg_i['axis'][1], seg_i['axis'][0])) % 180
-            angle_j = np.degrees(np.arctan2(seg_j['axis'][1], seg_j['axis'][0])) % 180
+            # Precompute angles once per trace
+            angle_i = np.degrees(np.arctan2(trace_i['axis'][1], trace_i['axis'][0])) % 180
+            angle_j = np.degrees(np.arctan2(trace_j['axis'][1], trace_j['axis'][0])) % 180
             
             # Check all 4 endpoint pairs
             endpoint_pairs = [
-                ((i, 'p1'), seg_i['p1'], (j, 'p1'), seg_j['p1']),
-                ((i, 'p1'), seg_i['p1'], (j, 'p2'), seg_j['p2']),
-                ((i, 'p2'), seg_i['p2'], (j, 'p1'), seg_j['p1']),
-                ((i, 'p2'), seg_i['p2'], (j, 'p2'), seg_j['p2']),
+                ((i, 'p1'), trace_i['p1'], (j, 'p1'), trace_j['p1']),
+                ((i, 'p1'), trace_i['p1'], (j, 'p2'), trace_j['p2']),
+                ((i, 'p2'), trace_i['p2'], (j, 'p1'), trace_j['p1']),
+                ((i, 'p2'), trace_i['p2'], (j, 'p2'), trace_j['p2']),
             ]
             
             for node_a, pt_a, node_b, pt_b in endpoint_pairs:
@@ -247,7 +247,7 @@ def detect_wires(gray):
                     continue
                 
                 # Criterion 3: Component blocking
-                if segment_crosses_component(pt_a, pt_b, component_bboxes):
+                if trace_crosses_component(pt_a, pt_b, component_bboxes):
                     continue
                 
                 # All criteria met → connect these endpoints in graph
@@ -261,7 +261,7 @@ def detect_wires(gray):
     # ────────────────────────────────────────────────────────────
     
     visited = set()
-    wires = []
+    segments = []
     
     # Find all connected components and trace paths
     for start_node in endpoint_graph:
@@ -283,12 +283,12 @@ def detect_wires(gray):
                     visited_local.add(neighbor)
                     queue.append(neighbor)
         
-        # Now trace the actual wire path through this component
+        # Now trace the actual segment path through this component
         # Start from a terminal node (degree 1) or any node if no terminal exists
         terminal_nodes = [n for n in component if len(endpoint_graph[n]) == 1]
         start = terminal_nodes[0] if terminal_nodes else component[0]
         
-        # Trace path: follow graph edges to build wire
+        # Trace path: follow graph edges to build segment
         path_nodes = [start]
         prev_node = None
         current = start
@@ -305,21 +305,21 @@ def detect_wires(gray):
             if len(path_nodes) > len(component) * 2:  # Prevent infinite loops
                 break
         
-        # Convert path nodes back to segment indices and collect endpoints
+        # Convert path nodes back to trace indices and collect endpoints
         all_points = []
-        member_segs = set()
+        member_traces = set()
         
         for node in path_nodes:
-            seg_idx, ep_type = node
-            member_segs.add(seg_idx)
-            seg = raw_segments[seg_idx]
-            all_points.append(seg['p1'])
-            all_points.append(seg['p2'])
+            trace_idx, ep_type = node
+            member_traces.add(trace_idx)
+            trace = raw_traces[trace_idx]
+            all_points.append(trace['p1'])
+            all_points.append(trace['p2'])
         
         if not all_points:
             continue
         
-        # Fit PCA to find wire direction and endpoints
+        # Fit PCA to find segment direction and endpoints
         pts = np.array(all_points, dtype=np.float32)
         mean, eigenvectors = cv2.PCACompute(pts, mean=None)
         primary_axis = eigenvectors[0]
@@ -333,57 +333,57 @@ def detect_wires(gray):
         if length < 20 or length > 600:
             continue
         
-        wires.append({
+        segments.append({
             'p1': (int(p1[0]), int(p1[1])),
             'p2': (int(p2[0]), int(p2[1])),
             'length_px': int(length),
-            'segment_count': len(member_segs),
+            'trace_count': len(member_traces),
             'type': 'merged'
         })
     
     # ────────────────────────────────────────────────────────────
-    # PHASE E: Deduplication - Remove duplicate wires
+    # PHASE E: Deduplication - Remove duplicate segments
     # ────────────────────────────────────────────────────────────
     
-    # Remove duplicate wires (same endpoints, possibly reversed)
-    deduped_wires = []
-    seen_wires = set()
+    # Remove duplicate segments (same endpoints, possibly reversed)
+    deduped_segments = []
+    seen_segments = set()
     
-    for wire in wires:
-        p1 = wire['p1']
-        p2 = wire['p2']
+    for segment in segments:
+        p1 = segment['p1']
+        p2 = segment['p2']
         
         # Create normalized key (sorted endpoints for direction invariance)
         key = tuple(sorted([p1, p2]))
         
-        if key not in seen_wires:
-            seen_wires.add(key)
-            deduped_wires.append(wire)
+        if key not in seen_segments:
+            seen_segments.add(key)
+            deduped_segments.append(segment)
     
     # ═══ DEBUG: Phase instrumentation ═══
-    print(f"    [Wire Detection] Raw segments: {n} → Graph merged: {len(wires)} → Deduplicated: {len(deduped_wires)} wires (GAP={GAP_THRESH}px, ANGLE={ANGLE_THRESH}°)")
+    print(f"    [Segment Detection] Raw traces: {n} → Graph merged: {len(segments)} → Deduplicated: {len(deduped_segments)} segments (GAP={GAP_THRESH}px, ANGLE={ANGLE_THRESH}°)")
 
-    return deduped_wires
+    return deduped_segments
 
 
-def filter_wires_by_components(wires, components, ocr_data, margin=50):
+def filter_segments_by_components(segments, components, ocr_data, margin=50):
     """
     Component-Anchored Validation:
-    Filter wires to only those with at least one endpoint near:
+    Filter segments to only those with at least one endpoint near:
     - A detected component (Tape, Connector, Clip)
     - An OCR text region (length annotations like "150mm")
     
-    This eliminates dimension lines, borders, and orphan segments.
+    This eliminates dimension lines, borders, and orphan traces.
     Margin (default 50px) controls how close endpoints must be to anchors.
     """
-    if not wires:
+    if not segments:
         return []
     
-    validated_wires = []
+    validated_segments = []
     
-    for wire in wires:
-        p1 = np.array(wire['p1'], dtype=np.float32)
-        p2 = np.array(wire['p2'], dtype=np.float32)
+    for segment in segments:
+        p1 = np.array(segment['p1'], dtype=np.float32)
+        p2 = np.array(segment['p2'], dtype=np.float32)
         
         p1_anchored = False
         p2_anchored = False
@@ -426,10 +426,10 @@ def filter_wires_by_components(wires, components, ocr_data, margin=50):
                 if dist_p2 < margin:
                     p2_anchored = True
         
-        # Accept wire if at least ONE endpoint is anchored to a component or label
+        # Accept segment if at least ONE endpoint is anchored to a component or label
         if p1_anchored or p2_anchored:
-            wire['p1_anchored'] = p1_anchored
-            wire['p2_anchored'] = p2_anchored
-            validated_wires.append(wire)
+            segment['p1_anchored'] = p1_anchored
+            segment['p2_anchored'] = p2_anchored
+            validated_segments.append(segment)
     
-    return validated_wires
+    return validated_segments

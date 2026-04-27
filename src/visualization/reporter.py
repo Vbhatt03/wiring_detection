@@ -7,14 +7,14 @@ Functions for generating connectivity reports and verification tables.
 import re
 
 
-def print_report(tapes, connectors, wires,
+def print_report(tapes, connectors, segments,
                  lengths, clips, connectivity_graph):
     """Print a connectivity report for all detected elements.
     
     Args:
         tapes: List of detected tape labels
         connectors: List of detected connectors
-        wires: List of detected wires
+        segments: List of detected segments
         lengths: List of detected length annotations
         clips: List of detected clips
         connectivity_graph: Connectivity graph dict with nodes and edges
@@ -22,7 +22,7 @@ def print_report(tapes, connectors, wires,
     SEP = '=' * 72
 
     print(SEP)
-    print('  WIRING DIAGRAM DETECTION REPORT')
+    print('  SEGMENT DIAGRAM DETECTION REPORT')
     print(SEP)
 
     print(f'\n[1] TAPE / CONDUIT LABELS  ({len(tapes)} found)')
@@ -35,20 +35,20 @@ def print_report(tapes, connectors, wires,
         x, y, w, h = c['bbox']
         print(f"    C{i+1}: {c['label']:<20}  at ({x},{y}) – {c.get('note','')}")
 
-    print(f'\n[3] WIRES  ({len(wires)} merged wires detected)')
-    wires_shown = sum(1 for w in wires if w['type'] in ('hough', 'merged'))
-    print(f'    (Showing {min(wires_shown, len(wires))} wires in visualization)')
-    for i, wire in enumerate(wires[:30]):  # Show first 30 in report
-        # Show metrics for merged wires
+    print(f'\n[3] SEGMENTS  ({len(segments)} merged segments detected)')
+    segments_shown = sum(1 for w in segments if w['type'] in ('hough', 'merged'))
+    print(f'    (Showing {min(segments_shown, len(segments))} segments in visualization)')
+    for i, segment in enumerate(segments[:30]):  # Show first 30 in report
+        # Show metrics for merged segments
         metrics = ""
-        if wire['type'] == 'merged':
-            metrics = f"  ({wire.get('segment_count', 1)} segments merged, total_path={wire.get('length_px', 0)}px)"
-        print(f"    wire {i+1:02d}: ({wire['p1'][0]},{wire['p1'][1]}) → ({wire['p2'][0]},{wire['p2'][1]})  "
-              f"len={wire['length_px']}px{metrics}")
-    if len(wires) > 20:
-        print(f"    … and {len(wires)-20} more")
+        if segment['type'] == 'merged':
+            metrics = f"  ({segment.get('trace_count', 1)} traces merged, total_path={segment.get('length_px', 0)}px)"
+        print(f"    segment {i+1:02d}: ({segment['p1'][0]},{segment['p1'][1]}) → ({segment['p2'][0]},{segment['p2'][1]})  "
+              f"len={segment['length_px']}px{metrics}")
+    if len(segments) > 20:
+        print(f"    … and {len(segments)-20} more")
 
-    print(f'\n[4] WIRE LENGTH ANNOTATIONS  ({len(lengths)} found)')
+    print(f'\n[4] SEGMENT LENGTH ANNOTATIONS  ({len(lengths)} found)')
     for ln in lengths:
         x, y, w, h = ln['bbox']
         x, y = int(round(x)), int(round(y))
@@ -66,38 +66,38 @@ def print_report(tapes, connectors, wires,
         print(f"      {nid:<15} at ({ninfo['x']},{ninfo['y']}) – {ninfo['label']}")
     
     # Show both raw and merged edge counts
-    raw_edge_count = len(connectivity_graph.get('raw_edges', []))
-    merged_edge_count = len(connectivity_graph['edges'])
+    raw_trace_count = len(connectivity_graph.get('raw_traces', []))
+    merged_segment_count = len(connectivity_graph['segments'])
     
-    print(f'\n    Edges (Raw: {raw_edge_count} segments → Merged: {merged_edge_count} connections):')
-    for i, edge in enumerate(connectivity_graph['edges'], 1):
-        # Handle both old and new edge format
-        if isinstance(edge.get('tapes'), list):
+    print(f'\n    Segments (Raw: {raw_trace_count} traces → Merged: {merged_segment_count} connections):')
+    for i, segment in enumerate(connectivity_graph['segments'], 1):
+        # Handle both old and new segment format
+        if isinstance(segment.get('tapes'), list):
             # Old format (per-segment)
-            tapes_str = '+'.join(edge['tapes'])
+            tapes_str = '+'.join(segment['tapes'])
         else:
             # New format (merged)
-            tapes_str = '+'.join(edge.get('wire_types', []))
+            tapes_str = '+'.join(segment.get('segment_types', []))
         
-        dim_str = f"{edge.get('dimension_mm', edge.get('dimension_mm', None))} mm" if edge.get('dimension_mm') else '—'
-        from_str = edge['node_a'] if edge['node_a'] else '?'
-        to_str = edge['node_b'] if edge['node_b'] else '?'
+        dim_str = f"{segment.get('dimension_mm', segment.get('dimension_mm', None))} mm" if segment.get('dimension_mm') else '—'
+        from_str = segment['node_a'] if segment['node_a'] else '?'
+        to_str = segment['node_b'] if segment['node_b'] else '?'
         
-        # Show segment count if merged
-        seg_info = ""
-        if edge.get('segment_count', 1) > 1:
-            seg_info = f"  ({edge['segment_count']} segments)"
+        # Show trace count if merged
+        trace_info = ""
+        if segment.get('trace_count', 1) > 1:
+            trace_info = f"  ({segment['trace_count']} traces)"
         
-        snapped_info = " [snapped]" if edge.get('snapped', False) else ""
+        snapped_info = " [snapped]" if segment.get('snapped', False) else ""
         
-        print(f"      [{i}] {tapes_str:<20} {dim_str:<10} {from_str:<18} → {to_str}{seg_info}{snapped_info}")
+        print(f"      [{i}] {tapes_str:<20} {dim_str:<10} {from_str:<18} → {to_str}{trace_info}{snapped_info}")
     
     print()
 
 
-def generate_verification_table(lengths, ocr_data, title="Wire Length Extraction Verification"):
+def generate_verification_table(lengths, ocr_data, title="Segment Length Extraction Verification"):
     """
-    Generate a manual verification table for extracted wire lengths.
+    Generate a manual verification table for extracted segment lengths.
     Shows: what text was detected → what value was extracted → verification status
     
     Args:
@@ -111,7 +111,7 @@ def generate_verification_table(lengths, ocr_data, title="Wire Length Extraction
     print('  ' + '='*90)
     
     if not lengths:
-        print("  [No wire lengths extracted]")
+        print("  [No segment lengths extracted]")
         return
     
     # Build lookup of all numeric text from OCR

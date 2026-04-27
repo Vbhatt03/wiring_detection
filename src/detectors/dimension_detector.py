@@ -1,4 +1,4 @@
-"""Wire dimension annotation detection module for wiring diagrams."""
+"""Segment dimension annotation detection module for segment diagrams."""
 
 import re
 import numpy as np
@@ -7,8 +7,8 @@ DIMENSION_PATTERN = re.compile(r'^[\(\+]*\d{1,4}[\+\)]*$')   # e.g. 0, (0), 25, 
 LABEL_KEYWORDS = re.compile(r'(VT-|AT-|COT-|DELPHI|MLC|J\d+|X\d+|Z\d+|C\d+)', re.IGNORECASE)
 
 
-def score_wire_dimension_value(val):
-    """Score how 'reasonable' a wire dimension value is.
+def score_segment_dimension_value(val):
+    """Score how 'reasonable' a segment dimension value is.
     
     Returns 0-100 based on:
     - Round numbers (multiples of 25 or 50) score higher: 100
@@ -29,7 +29,7 @@ def score_wire_dimension_value(val):
     elif val % 10 == 0:
         score += 20
     
-    # Prefer common automotive dimensions (most wires are under 300mm)
+    # Prefer common automotive dimensions (most segments are under 300mm)
     common_dimensions = {25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 300}
     if val in common_dimensions:
         score += 40
@@ -126,8 +126,8 @@ def merge_token_fragments(ocr_data):
 
 
 
-def detect_wire_dimensions(ocr_data, tapes=None, connectors=None):
-    """Extract numeric wire-dimension annotations from OCR data.
+def detect_segment_dimensions(ocr_data, tapes=None, connectors=None):
+    """Extract numeric segment-dimension annotations from OCR data.
     
     Accepts both horizontal, vertical, and angled text (parenthesized or not).
     Filters out dimensions that overlap with tape labels or connector bounding boxes.
@@ -140,7 +140,7 @@ def detect_wire_dimensions(ocr_data, tapes=None, connectors=None):
         connectors: List of detected connectors
     
     Returns:
-        List of detected wire dimension annotations
+        List of detected segment dimension annotations
     """
     if tapes is None:
         tapes = []
@@ -157,7 +157,7 @@ def detect_wire_dimensions(ocr_data, tapes=None, connectors=None):
     merged_data = merge_token_fragments(ocr_data)
     
     # Skip label_positions check — it's overly protective and causes false negatives
-    # Wire dimensions appear on wires, not inside label bboxes, so checking against label positions
+    # Segment dimensions appear on segments, not inside label bboxes, so checking against label positions
     # at this stage removes legitimate annotations more than it prevents false positives.
     # Tape and connector checks are sufficient filtering.
     
@@ -188,13 +188,13 @@ def detect_wire_dimensions(ocr_data, tapes=None, connectors=None):
                 print(f"    [Dimension Debug] Found txt='{txt}' clean='{clean}' val={val} at ({x},{y}) w={w} h={h}")
             
             # Reject tokens whose bounding box is too short to be real text —
-            # wire dashes misread as '1'/'11' have h << ref_h
+            # segment dashes misread as '1'/'11' have h << ref_h
             if h < ref_h * 0.45:
                 if val in (20, 55, 105, 10):
                     print(f"      → Rejected: h={h:.1f} < ref_h*0.45={ref_h*0.45:.1f}")
                 continue
-            # Reject wide flat bboxes — wire dashes read as '1'/'11' have w/h >> real digits
-            # Real digits: w/h < 3.5 even for '111'. Wire dashes: w/h can be 5-15
+            # Reject wide flat bboxes — segment dashes read as '1'/'11' have w/h >> real digits
+            # Real digits: w/h < 3.5 even for '111'. Segment dashes: w/h can be 5-15
             if h > 0 and (w / h) > 3.5:
                 if val in (20, 55, 105, 10):
                     print(f"      → Rejected: w/h={w/h:.2f} > 3.5")
@@ -280,7 +280,7 @@ def detect_wire_dimensions(ocr_data, tapes=None, connectors=None):
             is_paren = cand_item['is_parenthesized']
             
             in_common = 10000 if val in common_dimensions else 0
-            val_score = score_wire_dimension_value(val)
+            val_score = score_segment_dimension_value(val)
             norm_angle = min(angle % 180, 180 - (angle % 180))
             angle_score = 100 - min(norm_angle, 90 - abs(norm_angle - 90))
             # Strongly prefer parenthesized candidates — they carry more structural info

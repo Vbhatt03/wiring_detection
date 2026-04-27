@@ -25,7 +25,7 @@ def draw_label(canvas, text, pt, color=(0, 200, 0), scale=0.45, thickness=1):
                 scale, color, thickness, cv2.LINE_AA)
 
 
-def annotate(img, tapes, connectors, wires,
+def annotate(img, tapes, connectors, segments,
              dimensions, clips, connectivity, filters=None):
     """Annotate detected elements on the image.
     
@@ -33,10 +33,10 @@ def annotate(img, tapes, connectors, wires,
         img: Input image
         tapes: List of detected tape labels
         connectors: List of detected connectors
-        wires: List of detected wires
+        segments: List of detected segments
         dimensions: List of detected dimension annotations
         clips: List of detected clips
-        connectivity: Connectivity graph dict with 'nodes' and 'edges'
+        connectivity: Connectivity graph dict with 'nodes' and 'segments'
         filters: Dict of extraction filters (which elements to show)
     
     Returns:
@@ -46,7 +46,7 @@ def annotate(img, tapes, connectors, wires,
         filters = {
             'tapes': True,
             'connectors': True,
-            'wires': True,
+            'segments': True,
             'dimensions': True,
             'clips': True,
         }
@@ -72,10 +72,10 @@ def annotate(img, tapes, connectors, wires,
                        (0, 0, 180), scale=0.42)
 
     # — Output Connections (Connectivity Graph) —
-    if filters.get('wires', True):
-        edges = connectivity.get('edges', [])
+    if filters.get('segments', True):
+        segments = connectivity.get('segments', [])
         nodes = connectivity.get('nodes', {})
-        for e in edges:
+        for e in segments:
             node_a_id = e.get('node_a')
             node_b_id = e.get('node_b')
             
@@ -91,14 +91,14 @@ def annotate(img, tapes, connectors, wires,
                 cv2.circle(canvas, p2, 4, (0, 200, 0), -1)
                 
                 # Label the connection with its tape and dimension (Disabled per user request)
-                # wire_types = e.get('wire_types', e.get('tapes', []))
-                # tape_str = '+'.join(wire_types) if wire_types else "Unknown"
+                # segment_types = e.get('segment_types', e.get('tapes', []))
+                # tape_str = '+'.join(segment_types) if segment_types else "Unknown"
                 # dim_str = f"{e['dimension_mm']}mm" if e.get('dimension_mm') else ""
                 # label_text = f"{tape_str} {dim_str}".strip()
                 # mx, my = (p1[0] + p2[0]) // 2, (p1[1] + p2[1]) // 2
                 # draw_label(canvas, label_text, (mx - 20, my - 5), (0, 150, 0), scale=0.4)
 
-    # — Wire dimensions —
+    # — Segment dimensions —
     if filters.get('dimensions', True):
         for ln in dimensions:
             x, y, w, h = ln['bbox']
@@ -140,10 +140,10 @@ def annotate(img, tapes, connectors, wires,
         legends.append(('[TAPE]  Tape / conduit label', (0, 0, 180)))
     if filters.get('connectors', True):
         legends.append(('[CONN]  Delphi connector',      (0, 0, 180)))
-    if filters.get('wires', True):
-        legends.append(('[WIRE]  Detected wires',        (0, 128, 0)))
+    if filters.get('segments', True):
+        legends.append(('[SEGMENT]  Detected segments',        (0, 128, 0)))
     if filters.get('dimensions', True):
-        legends.append(('[DIM]   Wire dimension (mm)',      (0, 0, 180)))
+        legends.append(('[DIM]   Segment dimension (mm)',      (0, 0, 180)))
     if filters.get('clips', True):
         legends.append(('[CLIP]  Blue circular clip',    (0, 0, 180)))
     

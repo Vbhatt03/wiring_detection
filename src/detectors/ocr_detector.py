@@ -1,4 +1,4 @@
-"""OCR text extraction module for wiring diagrams."""
+"""OCR text extraction module for segment diagrams."""
 
 import numpy as np
 import cv2
@@ -120,7 +120,7 @@ def ocr_region(gray, x1, y1, x2, y2):
     texts = [res[1][0] for res in result[0] if res[1][0]]
     return " ".join(texts).strip()
 def ocr_full_dimensions(gray, use_tiling=True):
-    """OCR pass tuned for numeric wire-dimension annotations using image tiling.
+    """OCR pass tuned for numeric segment-dimension annotations using image tiling.
 
     Two-pass strategy:
     - Pass 1 (0deg): 480px tiles upscaled 2x = 960px — fits det_limit_side_len exactly.

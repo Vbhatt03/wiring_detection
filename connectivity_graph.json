@@ -113,7 +113,7 @@
       "type": "junction"
     }
   ],
-  "edges": [
+  "segments": [
     {
       "tapes": [
         "VT-BK"
@@ -121,7 +121,7 @@
       "from": "Connector-1",
       "to": "J20",
       "dimension_mm": 137,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         673,
         313
@@ -138,7 +138,7 @@
       "from": "Connector-2",
       "to": "Tape-VT-BK-3",
       "dimension_mm": 500,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         105,
         634
@@ -155,7 +155,7 @@
       "from": "Connector-3",
       "to": "Tape-VT-WH-1",
       "dimension_mm": 508,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         431,
         36
@@ -173,7 +173,7 @@
       "from": "Clip-1",
       "to": "Tape-VT-BK-2",
       "dimension_mm": 0,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         429,
         161
@@ -190,7 +190,7 @@
       "from": "Clip-1",
       "to": "Tape-VT-WH-2",
       "dimension_mm": 25,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         429,
         161
@@ -207,7 +207,7 @@
       "from": "Clip-1",
       "to": "Tape-VT-WH-1",
       "dimension_mm": 25,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         429,
         161
@@ -224,7 +224,7 @@
       "from": "Clip-2",
       "to": "Tape-VT-PK-1",
       "dimension_mm": 25,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         196,
         163
@@ -242,7 +242,7 @@
       "from": "Clip-2",
       "to": "Tape-VT-PK-2",
       "dimension_mm": 25,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         196,
         163
@@ -260,7 +260,7 @@
       "from": "Tape-AT-BK-1",
       "to": "J20",
       "dimension_mm": 137,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         934,
         747
@@ -278,7 +278,7 @@
       "from": "Tape-AT-BK-1",
       "to": "Tape-VT-BK-4",
       "dimension_mm": 452,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         934,
         747
@@ -296,7 +296,7 @@
       "from": "Tape-VT-BK-1",
       "to": "Tape-VT-BK-2",
       "dimension_mm": 0,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         285,
         329
@@ -314,7 +314,7 @@
       "from": "Tape-VT-BK-1",
       "to": "J20",
       "dimension_mm": 100,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         285,
         329
@@ -332,7 +332,7 @@
       "from": "Tape-VT-BK-1",
       "to": "Tape-VT-PK-2",
       "dimension_mm": 0,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         285,
         329
@@ -349,7 +349,7 @@
       "from": "Tape-VT-BK-2",
       "to": "J20",
       "dimension_mm": 100,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         349,
         339
@@ -367,7 +367,7 @@
       "from": "Tape-VT-BK-2",
       "to": "Tape-VT-WH-2",
       "dimension_mm": 0,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         349,
         339
@@ -384,7 +384,7 @@
       "from": "Tape-VT-BK-3",
       "to": "Tape-VT-BK-4",
       "dimension_mm": 58,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         374,
         737
@@ -402,7 +402,7 @@
       "from": "Tape-VT-BK-3",
       "to": "Tape-VT-PK-2",
       "dimension_mm": 0,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         374,
         737
@@ -419,7 +419,7 @@
       "from": "Tape-VT-BK-3",
       "to": "J20",
       "dimension_mm": 137,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         374,
         737
@@ -436,7 +436,7 @@
       "from": "Tape-VT-BK-4",
       "to": "J20",
       "dimension_mm": 137,
-      "segment_count": 1,
+      "trace_count": 1,
       "endpoint_1": [
         482,
         739
@@ -446,5 +446,6 @@
         685
       ]
     }
-  ]
+  ],
+  "routes": []
 }

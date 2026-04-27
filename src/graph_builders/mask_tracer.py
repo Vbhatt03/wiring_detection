@@ -1,13 +1,13 @@
-"""Mask-based wire tracer — BFS label propagation.
+"""Mask-based segment tracer — BFS label propagation.
 
 Pipeline:
-    1. Morphological CLOSE  — bridges dash-dot gaps in thick wires
+    1. Morphological CLOSE  — bridges dash-dot gaps in thick segments
     2. CCL area filter      — removes tiny noise fragments
-    3. Seed component circles onto wire pixels
+    3. Seed component circles onto segment pixels
     4. Multi-source BFS     — flood each component's label outward along
                               connected white pixels
     5. Edge detection       — wherever two different labels share a pixel
-                              boundary → wire connection between those components
+                              boundary → segment connection between those components
 """
 
 from __future__ import annotations
@@ -23,11 +23,11 @@ import numpy as np
 # px seed-circle radius around each component center
 COMPONENT_EXPAND = 25
 
-# Wire-pixel blobs below this area are treated as noise and removed
-MIN_WIRE_AREA = 80
+# Segment-pixel blobs below this area are treated as noise and removed
+MIN_SEGMENT_AREA = 80
 MAX_SEED_REACH=200
-# Node types that are property annotations, NOT physical wire endpoints.
-# Tape nodes (VT-BK, AT-BK, COT-BK …) sit on the wire and label its type;
+# Node types that are property annotations, NOT physical segment endpoints.
+# Tape nodes (VT-BK, AT-BK, COT-BK …) sit on the segment and label its type;
 # they must not become connection endpoints.
 ENDPOINT_EXCLUDED_TYPES: Set[str] = {"length", "dimension", "annotation"}
 # ────────────────────────────────────────────────────────────────────────────
@@ -38,16 +38,16 @@ _DIRS8 = [(-1, 0), (1, 0), (0, -1), (0, 1),
 
 # ── Step 1: mask cleaning ────────────────────────────────────────────────────
 
-def clean_wire_mask(wire_mask: np.ndarray) -> np.ndarray:
+def clean_segment_mask(segment_mask: np.ndarray) -> np.ndarray:
     """3-pass closing to bridge dash-dot gaps in all directions.
 
     Pass 1+2: directional rectangles target horizontal and vertical dashes.
     Pass 3: isotropic ellipse cleans up diagonal/irregular gaps.
-    No opening applied — opening erases thin wire sections.
+    No opening applied — opening erases thin segment sections.
     """
-    # Horizontal dashes (the long wire bus runs left-right)
+    # Horizontal dashes (the long segment bus runs left-right)
     k_h = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 45))
-    mask = cv2.morphologyEx(wire_mask, cv2.MORPH_CLOSE, k_h, iterations=1)
+    mask = cv2.morphologyEx(segment_mask, cv2.MORPH_CLOSE, k_h, iterations=1)
 
     # Vertical dashes
     k_v = cv2.getStructuringElement(cv2.MORPH_RECT, (45, 1))
@@ -108,7 +108,7 @@ def _seed_and_bfs(
             queue.append((y, x, seed_idx))
 
         # Fallback: if center is inside an erased bbox (connector body was masked out),
-        # scan a wider radius for the nearest wire pixel approaching the component.
+        # scan a wider radius for the nearest segment pixel approaching the component.
         if len(ys_seed) == 0:
             ey0 = max(0, cy - MAX_SEED_REACH)
             ey1 = min(h, cy + MAX_SEED_REACH + 1)
@@ -127,9 +127,9 @@ def _seed_and_bfs(
                         seeded += 1
                 print(f"    [MaskTrace] {nid}: erased center, "
                       f"fallback seeded {seeded} px "
-                      f"(nearest wire ~{int(dists[nearest[0]]**0.5)}px away)")
+                      f"(nearest segment ~{int(dists[nearest[0]]**0.5)}px away)")
             else:
-                print(f"    [MaskTrace] {nid}: no wire within {MAX_SEED_REACH}px")
+                print(f"    [MaskTrace] {nid}: no segment within {MAX_SEED_REACH}px")
 
     connections: Set[Tuple[int, int]] = set()
     while queue:
@@ -159,11 +159,11 @@ def _path_pts_between(
     pos_b: Tuple[int, int],
     max_pts: int = 150,
 ) -> List[Tuple[int, int]]:
-    """Ordered (x, y) points sampled along the wire between component A and B.
+    """Ordered (x, y) points sampled along the segment between component A and B.
 
     Collects all pixels claimed by either label, projects them onto the A→B
     axis, and subsamples to ≤ max_pts points.  The result is used by
-    assign_wire_properties to find tape/length labels within 80 px of the wire.
+    assign_segment_properties to find tape/length labels within 80 px of the segment.
     """
     mask = (label_img == idx_a) | (label_img == idx_b)
     ys, xs = np.where(mask)
@@ -189,18 +189,18 @@ def _path_pts_between(
 # ── Public entry point ────────────────────────────────────────────────────────
 
 def trace_mask_connectivity(
-    wire_mask: np.ndarray,
+    segment_mask: np.ndarray,
     nodes_dict: Dict,
     component_expand: int = COMPONENT_EXPAND,
 ) -> nx.Graph:
-    h, w = wire_mask.shape[:2]
+    h, w = segment_mask.shape[:2]
 
-    cleaned = clean_wire_mask(wire_mask)
-    cleaned = _remove_tiny_blobs(cleaned, MIN_WIRE_AREA)
+    cleaned = clean_segment_mask(segment_mask)
+    cleaned = _remove_tiny_blobs(cleaned, MIN_SEGMENT_AREA)
     cv2.imwrite("debug_cleaned_mask.png", cleaned)
 
-    # Pre-filter: only connectors, clips, junctions are wire endpoints.
-    # Tape/length/annotation nodes sit ON wires — never connection endpoints.
+    # Pre-filter: only connectors, clips, junctions are segment endpoints.
+    # Tape/length/annotation nodes sit ON segments — never connection endpoints.
     eligible_ids = [
         nid for nid, info in nodes_dict.items()
         if info.get("type", "") not in ENDPOINT_EXCLUDED_TYPES
@@ -238,7 +238,7 @@ def trace_mask_connectivity(
                 na, nb,
                 path_pts=path_pts,
                 path_length_px=dist_px,
-                wire_type=None,
+                segment_type=None,
                 dimension_mm=None,
             )
             print(f"    [MaskTrace] {na} ↔ {nb}  dist={dist_px:.0f}px")

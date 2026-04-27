@@ -1,4 +1,4 @@
-"""Component masking and binary wire-mask generation utilities.
+"""Component masking and binary segment-mask generation utilities.
 
 Only masks the specific components from the FINAL output annotation
 (connectors, clips, tape-label boxes).  Everything else — text, connector
@@ -35,7 +35,7 @@ def _erase_rect(binary: np.ndarray, bbox: Sequence[float], margin: int) -> None:
         binary[y1:y2, x1:x2] = 0
 
 
-def create_wire_mask(
+def create_segment_mask(
     gray: np.ndarray,
     img_color: np.ndarray,
     connectors: Iterable[Dict],
@@ -44,10 +44,10 @@ def create_wire_mask(
     ocr_data: Iterable[Tuple],
     dimensions: Optional[Iterable[Dict]] = None,
 ) -> np.ndarray:
-    """Create a binary mask where wire pixels = 255 and background = 0.
+    """Create a binary mask where segment pixels = 255 and background = 0.
 
     Only the detected output-annotation components are erased:
-      • Connector bodies  (shrunk 2 px so edge-touching wires survive)
+      • Connector bodies  (shrunk 2 px so edge-touching segments survive)
       • Clip circles       (tight radius)
       • Tape-label boxes   (exact bbox)
       • Blue / yellow colour highlights

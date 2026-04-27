@@ -1,16 +1,16 @@
-# Wire Detection System
+# Segment Detection System
 
-Automated extraction and analysis of automotive wiring diagram schematics. This system identifies electrical components (connectors, clips, junctions) and wires, then constructs a connectivity graph representing the electrical topology.
+Automated extraction and analysis of automotive segment diagram schematics. This system identifies electrical components (connectors, clips, junctions) and segments, then constructs a connectivity graph representing the electrical topology.
 
 ## Overview
 
-The Wire Detection System processes high-resolution automotive wiring diagrams to extract:
-- **Wires**: Individual wire segments and merged paths
+The Segment Detection System processes high-resolution automotive segment diagrams to extract:
+- **Segments**: Individual segment traces and merged segments
 - **Connectors**: Delphi-style electrical connectors 
 - **Junctions**: Labeled connection points in the diagram
-- **Clips**: Blue Z-marker clips indicating wire harness bundles
-- **Tape Labels**: Wire type identifiers (VT-WH, VT-BK, etc.)
-- **Dimension Annotations**: Wire dimension measurements in millimeters
+- **Clips**: Blue Z-marker clips indicating segment harness bundles
+- **Tape Labels**: Segment type identifiers (VT-WH, VT-BK, etc.)
+- **Dimension Annotations**: Segment dimension measurements in millimeters
 
 ## Quick Start
 
@@ -32,7 +32,7 @@ pip install -r requirements.txt
 python run.py /path/to/diagram.png
 
 # With filtering options
-python run.py diagram.png --extract-only=tapes,wires,clips
+python run.py diagram.png --extract-only=tapes,segments,clips
 
 # Skip certain elements
 python run.py diagram.png --skip=dimensions
@@ -41,7 +41,7 @@ python run.py diagram.png --skip=dimensions
 ### Output
 
 The detector generates:
-- `connectivity_graph.json`: Complete graph structure with nodes and edges
+- `connectivity_graph.json`: Complete graph structure with nodes, segments, and routes
 - Annotated image with detected elements labeled
 - Console report showing detected components and connections
 
@@ -50,12 +50,12 @@ The detector generates:
 ```
 src/
 ├── run_detector.py              # Main orchestrator
-├── component_masker.py          # Wire mask extraction
-├── skeleton_graph.py            # Skeleton-based wire graph
-├── wiring_connectivity.py       # Legacy connectivity logic
+├── component_masker.py          # Segment mask extraction
+├── skeleton_graph.py            # Skeleton-based segment graph
+├── segment_connectivity.py       # Legacy connectivity logic
 │
 ├── detectors/                   # Element detection modules
-│   ├── wire_detector.py         # Wire extraction (CCL + PCA)
+│   ├── segment_detector.py         # Segment extraction (CCL + PCA)
 │   ├── ocr_detector.py          # Text recognition
 │   ├── tape_detector.py         # Tape label detection
 │   ├── connector_detector.py    # Connector detection
@@ -93,9 +93,9 @@ src/
 - **Clips**: Blue HSV color range + circular shape detection
 - **Dimensions**: Numeric pattern recognition with deduplication
 
-### Phase 3: Wire Extraction
+### Phase 3: Segment Extraction
 - **Mask creation**: Invert grayscale + remove colored overlays
-- **Skeletonization**: Thin wire paths to 1-pixel centerlines
+- **Skeletonization**: Thin segment paths to 1-pixel centerlines
 - **Graph extraction**: Use Connected Components + PCA for endpoint detection
 - **Graph filtering**: Consolidate nearby nodes, bridge gaps, prune spurs
 
@@ -106,10 +106,10 @@ src/
 
 ## Limitations & Future Work
 
-- **Connection accuracy**: Heuristic-based edge derivation may miss or misidentify connections
-- **Dimension mapping**: Wire type and dimension assignment not fully accurate
+- **Connection accuracy**: Heuristic-based segment derivation may miss or misidentify connections
+- **Dimension mapping**: Segment type and dimension assignment not fully accurate
 - **Component classification**: Distinguishes connectors/clips from junctions but limited semantic understanding
-- **Dashed wire handling**: Currently works well but could be optimized further
+- **Dashed segment handling**: Currently works well but could be optimized further
 
 ## Configuration
 

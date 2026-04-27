@@ -1,4 +1,4 @@
-"""Skeletonization and graph extraction utilities for wiring diagrams."""
+"""Skeletonization and graph extraction utilities for segment diagrams."""
 
 from __future__ import annotations
 
@@ -79,15 +79,15 @@ def prune_spurs(skeleton: np.ndarray, min_branch_length: int = 10) -> np.ndarray
     return skel
 
 
-def skeletonize_wire_mask(
-    wire_mask: np.ndarray,
+def skeletonize_segment_mask(
+    segment_mask: np.ndarray,
     j20_hint: Optional[Tuple[int, int]] = None,
     j20_region_radius: int = 30,
     j20_dilate_kernel: int = 5,
     min_branch_length: int = 10,
 ) -> np.ndarray:
-    """Convert wire mask to a cleaned 1-pixel-wide skeleton."""
-    mask_bool = wire_mask > 0
+    """Convert segment mask to a cleaned 1-pixel-wide skeleton."""
+    mask_bool = segment_mask > 0
 
     # Local dilation around J20 can help force one clean hub before thinning.
     if j20_hint is not None:
@@ -168,7 +168,7 @@ def consolidate_junctions(graph: nx.MultiGraph, radius: float = 15.0) -> nx.Mult
             if np.linalg.norm(pa - pb) > radius:
                 continue
 
-            # Move node a to centroid and rewire b neighbors into a.
+            # Move node a to centroid and resegment b neighbors into a.
             centroid = (float((pa[0] + pb[0]) / 2.0), float((pa[1] + pb[1]) / 2.0))
             g.nodes[a]["x"], g.nodes[a]["y"], g.nodes[a]["pos"] = centroid[0], centroid[1], centroid
 
@@ -256,7 +256,7 @@ def prune_short_edges(graph: nx.MultiGraph, min_weight: float = 20.0) -> nx.Mult
 def bridge_nearby_components(graph: nx.MultiGraph, bridge_radius: float = 50.0) -> nx.MultiGraph:
     """Connect nearby endpoints that belong to different connected components.
 
-    Schematic wire masks often have tiny gaps where dash-dot patterns or
+    Schematic segment masks often have tiny gaps where dash-dot patterns or
     component maskings create breaks.  This step bridges those gaps at the
     graph level by adding synthetic edges between endpoint nodes (degree <= 1)
     in different CCs that are within *bridge_radius* pixels of each other.

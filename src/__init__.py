@@ -1,16 +1,16 @@
 """
-Wire Detection - Wiring Diagram Analysis Package
+Segment Detection - Segment Diagram Analysis Package
 
-This package contains modules for detecting and analyzing automotive wiring diagrams.
+This package contains modules for detecting and analyzing automotive segment diagrams.
 
 Subpackages:
-- detectors/: Element detection modules (OCR, tapes, connectors, clips, dimensions, wires)
+- detectors/: Element detection modules (OCR, tapes, connectors, clips, dimensions, segments)
 - graph_builders/: Connectivity graph construction and analysis
 - visualization/: Image annotation and reporting utilities
 """
 
 __version__ = "1.0.0"
-__author__ = "Wire Detection Team"
+__author__ = "Segment Detection Team"
 
 # Import detector modules
 from .detectors import (
@@ -19,9 +19,9 @@ from .detectors import (
     detect_tape_labels,
     detect_delphi_connectors,
     detect_blue_clips,
-    detect_wire_dimensions,
-    detect_wires,
-    filter_wires_by_components,
+    detect_segment_dimensions,
+    detect_segments,
+    filter_segments_by_components,
     detect_components,
     TAPE_PATTERNS,
     TAPE_COLOR_BGR,
@@ -30,12 +30,12 @@ from .detectors import (
 
 # Import graph builder modules
 from .graph_builders import (
-    merge_edges_by_component_pair,
+    merge_segments_by_component_pair,
     build_connectivity_graph_heuristic,
-    classify_wire,
+    classify_segment,
     build_component_nodes,
     map_components_to_graph,
-    assign_wire_properties,
+    assign_segment_properties,
     convert_to_legacy_format,
 )
 
@@ -48,16 +48,16 @@ from .visualization import (
 )
 
 # Import other core modules
-from .component_masker import create_wire_mask
+from .component_masker import create_segment_mask
 from .skeleton_graph import (
-    skeletonize_wire_mask,
+    skeletonize_segment_mask,
     extract_skeleton_graph,
     filter_skeleton_graph,
 )
-from .wiring_connectivity import (
+from .segment_connectivity import (
     Component,
-    Wire,
-    Edge,
+    Segment,
+    Segment,
     build_connectivity_graph,
     save_graph_to_json,
     print_connectivity_report,
@@ -73,17 +73,17 @@ __all__ = [
     'detect_tape_labels',
     'detect_delphi_connectors',
     'detect_blue_clips',
-    'detect_wire_dimensions',
-    'detect_wires',
-    'filter_wires_by_components',
+    'detect_segment_dimensions',
+    'detect_segments',
+    'filter_segments_by_components',
     'detect_components',
     # Graph builder functions
-    'merge_edges_by_component_pair',
+    'merge_segments_by_component_pair',
     'build_connectivity_graph_heuristic',
-    'classify_wire',
+    'classify_segment',
     'build_component_nodes',
     'map_components_to_graph',
-    'assign_wire_properties',
+    'assign_segment_properties',
     'convert_to_legacy_format',
     'trace_mask_connectivity',
     # Visualization and reporting
@@ -92,8 +92,8 @@ __all__ = [
     'print_report',
     'generate_verification_table',
     # Core utilities
-    'create_wire_mask',
-    'skeletonize_wire_mask',
+    'create_segment_mask',
+    'skeletonize_segment_mask',
     'extract_skeleton_graph',
     'filter_skeleton_graph',
     'load',
@@ -105,8 +105,8 @@ __all__ = [
     'DIMENSION_PATTERN',
     # Legacy support
     'Component',
-    'Wire',
-    'Edge',
+    'Segment',
+    'Segment',
     'build_connectivity_graph',
     'save_graph_to_json',
     'print_connectivity_report',
