@@ -98,8 +98,10 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
     ocr_data = ocr_full(gray)
     print(f"  {len(ocr_data)} text tokens found")
     print("Running length OCR ...")
+    import sys as _sys
+    _sys.stdout.flush()
     if not ocr_use_tiling:
-        print("  (tiling disabled)")
+        print("  (tiling disabled - single pass)")
     ocr_lengths = ocr_full_lengths(gray, use_tiling=ocr_use_tiling)
     print(f"  {len(ocr_lengths)} length OCR tokens found")
     # Diagnostic: dump all purely numeric tokens from ocr_lengths

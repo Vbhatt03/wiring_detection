@@ -131,11 +131,14 @@ def ocr_full_lengths(gray, use_tiling=True):
         gray: Grayscale image array
         use_tiling: If False, scans entire image without tiling. Default True.
     """
+    import sys as _sys
     if not PADDLEOCR_OK:
         return []
     
     # If tiling is disabled, use the full image without tiling
     if not use_tiling:
+        print("  [progress] Single-pass OCR (tiling disabled)...")
+        _sys.stdout.flush()
         return ocr_full(gray)
 
     scale = 2.0
@@ -145,12 +148,15 @@ def ocr_full_lengths(gray, use_tiling=True):
     out = []
 
     def _ocr_tiles(var_gray, tile_size, overlap, angles):
+        total_tiles = ((h_orig - 1) // tile_size + 1) * ((w_orig - 1) // tile_size + 1)
         y = 0
+        tile_count = 0
         while y < h_orig:
             y_end = min(y + tile_size, h_orig)
             x = 0
             while x < w_orig:
                 x_end = min(x + tile_size, w_orig)
+                tile_count += 1
 
                 tile = var_gray[y:y_end, x:x_end]
                 tile_up = cv2.resize(tile, None, fx=scale, fy=scale,
@@ -158,7 +164,18 @@ def ocr_full_lengths(gray, use_tiling=True):
                 th, tw = tile_up.shape[:2]
                 center = (tw / 2.0, th / 2.0)
 
-                for ang in angles:
+                for i, ang in enumerate(angles):
+                    if i == 0 and y == 0 and x == 0:
+                        angle_list_str = ', '.join(str(a) for a in angles)
+                        print(f"  [progress] Processing {len(angles)} angles: [{angle_list_str}] ({total_tiles} tiles each)")
+                        _sys.stdout.flush()
+                    elif i > 0 and y == 0 and x == 0:
+                        print(f"  [progress]   ...angle {ang}° ({tile_count}/{total_tiles} tiles)...")
+                        _sys.stdout.flush()
+                    elif tile_count % 5 == 0 and i == 0:
+                        print(f"  [progress]     tile {tile_count}/{total_tiles}...")
+                        _sys.stdout.flush()
+                    
                     if ang == 0:
                         rotated = cv2.cvtColor(tile_up, cv2.COLOR_GRAY2BGR)
                         M_inv = None
@@ -218,8 +235,17 @@ def ocr_full_lengths(gray, use_tiling=True):
 
     for var_gray in variants_gray:
         # Pass 1: horizontal text — 480px tiles, 0deg only
+        print("  [progress] Pass 1/2 - scanning horizontal text...")
+        _sys.stdout.flush()
         _ocr_tiles(var_gray, tile_size=480, overlap=40, angles=[0])
+        print(f"  [progress] Pass 1 complete: {len(out)} tokens found")
+        _sys.stdout.flush()
+        
         # Pass 2: angled text — 320px tiles (640px upscaled, ~905px at 45deg < 960px limit)
+        print("  [progress] Pass 2/2 - scanning rotated text (11 angles × ~25 tiles = ~275 OCR inferences)...")
+        _sys.stdout.flush()
         _ocr_tiles(var_gray, tile_size=320, overlap=30, angles=[30,45,60,75, 90,115,130, 270, 315,345,330])
+        print(f"  [progress] Pass 2 complete: {len(out)} total tokens extracted")
+        _sys.stdout.flush()
 
     return out
