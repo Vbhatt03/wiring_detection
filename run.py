@@ -17,6 +17,7 @@ if __name__ == '__main__':
     
     extract_filters = EXTRACT_FILTERS.copy()
     use_legacy = False
+    ocr_use_tiling = True
     
     # Parse optional arguments
     for arg in sys.argv[2:]:
@@ -29,5 +30,7 @@ if __name__ == '__main__':
                 extract_filters[item] = False
         elif arg == '--legacy':
             use_legacy = True
+        elif arg == '--ocr-no-tiling':
+            ocr_use_tiling = False
     
-    main(image_path, extract_filters, use_legacy=use_legacy)
+    main(image_path, extract_filters, use_legacy=use_legacy, ocr_use_tiling=ocr_use_tiling)

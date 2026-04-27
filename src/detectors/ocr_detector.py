@@ -119,16 +119,24 @@ def ocr_region(gray, x1, y1, x2, y2):
         
     texts = [res[1][0] for res in result[0] if res[1][0]]
     return " ".join(texts).strip()
-def ocr_full_lengths(gray):
+def ocr_full_lengths(gray, use_tiling=True):
     """OCR pass tuned for numeric wire-length annotations using image tiling.
 
     Two-pass strategy:
     - Pass 1 (0deg): 480px tiles upscaled 2x = 960px — fits det_limit_side_len exactly.
     - Pass 2 (rotated): 320px tiles upscaled 2x = 640px — at 45deg diagonal ~905px < 960px.
     Both passes avoid PaddleOCR's internal downscaling that makes small numbers invisible.
+    
+    Args:
+        gray: Grayscale image array
+        use_tiling: If False, scans entire image without tiling. Default True.
     """
     if not PADDLEOCR_OK:
         return []
+    
+    # If tiling is disabled, use the full image without tiling
+    if not use_tiling:
+        return ocr_full(gray)
 
     scale = 2.0
     h_orig, w_orig = gray.shape[:2]

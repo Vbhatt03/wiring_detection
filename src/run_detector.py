@@ -73,7 +73,7 @@ EXTRACT_FILTERS = {
 }
 
 
-def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy=False):
+def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy=False, ocr_use_tiling=True):
     """
     Main detection pipeline orchestrator.
     
@@ -81,6 +81,7 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
         image_path: Path to wiring diagram image
         extract_filters: Dict specifying which elements to extract
         use_legacy: If True, use legacy heuristic pipeline instead of skeleton-based
+        ocr_use_tiling: If False, OCR scans entire image without tiling. Default True.
     """
     if extract_filters is None:
         extract_filters = EXTRACT_FILTERS.copy()
@@ -97,7 +98,9 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
     ocr_data = ocr_full(gray)
     print(f"  {len(ocr_data)} text tokens found")
     print("Running length OCR ...")
-    ocr_lengths = ocr_full_lengths(gray)
+    if not ocr_use_tiling:
+        print("  (tiling disabled)")
+    ocr_lengths = ocr_full_lengths(gray, use_tiling=ocr_use_tiling)
     print(f"  {len(ocr_lengths)} length OCR tokens found")
     # Diagnostic: dump all purely numeric tokens from ocr_lengths
     import re as _re
