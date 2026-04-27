@@ -75,7 +75,9 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 
 ### Segment Detection
 
-**Default Method**: Binary Mask Tracing via `create_segment_mask()` + `trace_mask_connectivity()`
+**Note**: Default and Legacy pipelines are completely independent implementations. Default uses `create_segment_mask()` + BFS; Legacy uses `detect_segments()` with Canny edge detection. They share no code.
+
+#### Default Method (no flag): Binary Mask Tracing
 
 **Step 1 — `create_segment_mask()` (component_masker.py)** — Create clean binary mask:
 1. **Otsu thresholding**: Gaussian blur (3×3) + inverted Otsu threshold → dark pixels = white (255), background = black (0)
@@ -93,19 +95,17 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 5. **Connectivity mapping**: Label each seed pixel with its component ID; wherever two different component IDs meet on a pixel boundary → segment connection
 6. **Graph building**: Convert labeled connectivity into NetworkX graph (one edge per component pair)
 
-**Legacy Method** (`--legacy` flag): Canny Edge Detection + HSV Masking + Connected Components Labeling
-1. **Edge detection**: Canny edge detection (thresholds 30-100)
-2. **Dark mask**: HSV color range for dark pixels (V < 150, S < 100)
-3. **Segment mask**: AND operation between Canny edges and dark HSV mask
-4. **Component subtraction**: Remove filled blobs (connectors, clips) as topology barriers
-5. **Gap bridging**: 9x9 ellipse dilation (2 iterations), then morphological close/open
-6. **Connected Components Labeling (CCL)**: Extract individual segment traces from binary mask
-7. **Heuristic pairing**: Tape-label anchoring to pair components into connections
+#### Legacy Method (`--legacy` flag): Canny Edge Detection + CCL
 
-**Component Detection** (helper): `detect_components()`
-- Identifies filled blobs (connectors, clips) as electrical topology barriers
-- Criteria: aspect ratio < 4.0, fill ratio > 0.25, area 80-8000px
-- **Purpose**: Create mask to prevent segments from incorrectly snapping to component edges
+**Independent implementation via `detect_segments()`** — does NOT call `create_segment_mask()`:
+1. **Component detection**: Identify filled blobs (connectors, clips) as topology barriers (aspect ratio < 4.0, fill > 0.25, area 80-8000px)
+2. **Edge detection**: Canny edge detection (thresholds 30-100)
+3. **Dark mask**: HSV color range for dark pixels (V < 150, S < 100)
+4. **Segment mask**: AND operation between Canny edges and dark HSV mask
+5. **Component subtraction**: Remove filled blobs to prevent segments incorrectly snapping to component edges
+6. **Gap bridging**: 9x9 ellipse dilation (2 iterations), then morphological close/open
+7. **Connected Components Labeling (CCL)**: Extract individual segment traces from binary mask
+8. **Heuristic pairing**: Tape-label anchoring to pair components into connections
 
 ---
 ## Running the Pipeline (`run.py`)
