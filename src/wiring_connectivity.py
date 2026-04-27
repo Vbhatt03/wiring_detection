@@ -27,7 +27,7 @@ class Wire:
     """Represents a wire segment in the diagram"""
     id: str
     endpoints: Tuple[Tuple[int, int], Tuple[int, int]]  # (p1, p2)
-    length_mm: Optional[float] = None
+    dimension_mm: Optional[float] = None
     confidence: Optional[float] = None
     tape_types: Optional[List[str]] = None
 
@@ -38,7 +38,7 @@ class Edge:
     wire_id: str
     from_component: Optional[Dict]
     to_component: Optional[Dict]
-    length_mm: Optional[float] = None
+    dimension_mm: Optional[float] = None
     tape_types: Optional[List[str]] = None
     confidence: Optional[float] = None
     status: str = "unverified"  # unverified, correct, incorrect, manual_review
@@ -141,7 +141,7 @@ def build_connectivity_graph(
                     'position': to_component.position,
                     'label': to_component.label
                 },
-                'length_mm': wire.length_mm,
+                'dimension_mm': wire.dimension_mm,
                 'tape_types': wire.tape_types,
                 'confidence': wire.confidence,
                 'status': 'unverified'
@@ -237,9 +237,9 @@ def print_connectivity_report(graph: Dict) -> None:
         for i, edge in enumerate(edges[:10], 1):  # Show first 10
             from_label = edge['from'].get('label', edge['from']['id'])
             to_label = edge['to'].get('label', edge['to']['id'])
-            length = edge.get('length_mm', '—')
+            dimension = edge.get('dimension_mm', '—')
             tapes = '+'.join(edge.get('tape_types', [])) or '—'
-            print(f"  [{i}] {from_label:20} → {to_label:20} | {tapes:15} | {length} mm")
+            print(f"  [{i}] {from_label:20} → {to_label:20} | {tapes:15} | {dimension} mm")
         
         if len(edges) > 10:
             print(f"  ... and {len(edges) - 10} more edges")

@@ -239,7 +239,7 @@ def trace_mask_connectivity(
                 path_pts=path_pts,
                 path_length_px=dist_px,
                 wire_type=None,
-                length_mm=None,
+                dimension_mm=None,
             )
             print(f"    [MaskTrace] {na} ↔ {nb}  dist={dist_px:.0f}px")
 

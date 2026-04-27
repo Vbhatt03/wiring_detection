@@ -1,18 +1,18 @@
-"""Wire length annotation detection module for wiring diagrams."""
+"""Wire dimension annotation detection module for wiring diagrams."""
 
 import re
 import numpy as np
 
-LENGTH_PATTERN = re.compile(r'^[\(\+]*\d{1,4}[\+\)]*$')   # e.g. 0, (0), 25, (25), (50), 150, (+150+)
+DIMENSION_PATTERN = re.compile(r'^[\(\+]*\d{1,4}[\+\)]*$')   # e.g. 0, (0), 25, (25), (50), 150, (+150+)
 LABEL_KEYWORDS = re.compile(r'(VT-|AT-|COT-|DELPHI|MLC|J\d+|X\d+|Z\d+|C\d+)', re.IGNORECASE)
 
 
-def score_wire_length_value(val):
-    """Score how 'reasonable' a wire length value is.
+def score_wire_dimension_value(val):
+    """Score how 'reasonable' a wire dimension value is.
     
     Returns 0-100 based on:
     - Round numbers (multiples of 25 or 50) score higher: 100
-    - Common lengths (25, 50, 75, 100, 150, 200, 250): +50
+    - Common dimensions (25, 50, 75, 100, 150, 200, 250): +50
     - Within typical range (10-300): +30
     - Reasonable but less common: +20
     - Outliers or suspicious (>400mm): 0
@@ -29,9 +29,9 @@ def score_wire_length_value(val):
     elif val % 10 == 0:
         score += 20
     
-    # Prefer common automotive lengths (most wires are under 300mm)
-    common_lengths = {25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 300}
-    if val in common_lengths:
+    # Prefer common automotive dimensions (most wires are under 300mm)
+    common_dimensions = {25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 300}
+    if val in common_dimensions:
         score += 40
     
     # Prefer typical range (10-300mm is most common in automotive)
@@ -126,11 +126,11 @@ def merge_token_fragments(ocr_data):
 
 
 
-def detect_wire_lengths(ocr_data, tapes=None, connectors=None):
-    """Extract numeric wire-length annotations from OCR data.
+def detect_wire_dimensions(ocr_data, tapes=None, connectors=None):
+    """Extract numeric wire-dimension annotations from OCR data.
     
     Accepts both horizontal, vertical, and angled text (parenthesized or not).
-    Filters out lengths that overlap with tape labels or connector bounding boxes.
+    Filters out dimensions that overlap with tape labels or connector bounding boxes.
     Smartly deduplicates multi-angle detections by proximity and confidence.
     Thresholds are adaptive to image dimension and OCR token size.
     
@@ -140,7 +140,7 @@ def detect_wire_lengths(ocr_data, tapes=None, connectors=None):
         connectors: List of detected connectors
     
     Returns:
-        List of detected wire length annotations
+        List of detected wire dimension annotations
     """
     if tapes is None:
         tapes = []
@@ -157,7 +157,7 @@ def detect_wire_lengths(ocr_data, tapes=None, connectors=None):
     merged_data = merge_token_fragments(ocr_data)
     
     # Skip label_positions check — it's overly protective and causes false negatives
-    # Wire lengths appear on wires, not inside label bboxes, so checking against label positions
+    # Wire dimensions appear on wires, not inside label bboxes, so checking against label positions
     # at this stage removes legitimate annotations more than it prevents false positives.
     # Tape and connector checks are sufficient filtering.
     
@@ -178,14 +178,14 @@ def detect_wire_lengths(ocr_data, tapes=None, connectors=None):
         else:
             continue
             
-        clean = normalize_length_token(txt)
-        if LENGTH_PATTERN.match(clean):
+        clean = normalize_dimension_token(txt)
+        if DIMENSION_PATTERN.match(clean):
             val = int(re.sub(r'[^\d]', '', clean))
             is_parenthesized = ('(' in clean) or (')' in clean)
             
             # Debug: track 20 and 105/10
             if val in (20, 55, 105, 10):
-                print(f"    [Length Debug] Found txt='{txt}' clean='{clean}' val={val} at ({x},{y}) w={w} h={h}")
+                print(f"    [Dimension Debug] Found txt='{txt}' clean='{clean}' val={val} at ({x},{y}) w={w} h={h}")
             
             # Reject tokens whose bounding box is too short to be real text —
             # wire dashes misread as '1'/'11' have h << ref_h
@@ -248,8 +248,8 @@ def detect_wire_lengths(ocr_data, tapes=None, connectors=None):
                     print(f"      → Rejected: value range check failed (is_paren={is_parenthesized})")
     
     # Smart deduplication: cluster by proximity, pick best value
-    common_lengths = {25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 300}
-    lengths = []
+    common_dimensions = {25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 300}
+    dimensions = []
     used = set()
     
     for i, cand in enumerate(candidates):
@@ -279,8 +279,8 @@ def detect_wire_lengths(ocr_data, tapes=None, connectors=None):
             angle = cand_item['angle']
             is_paren = cand_item['is_parenthesized']
             
-            in_common = 10000 if val in common_lengths else 0
-            val_score = score_wire_length_value(val)
+            in_common = 10000 if val in common_dimensions else 0
+            val_score = score_wire_dimension_value(val)
             norm_angle = min(angle % 180, 180 - (angle % 180))
             angle_score = 100 - min(norm_angle, 90 - abs(norm_angle - 90))
             # Strongly prefer parenthesized candidates — they carry more structural info
@@ -301,23 +301,23 @@ def detect_wire_lengths(ocr_data, tapes=None, connectors=None):
         if best_cand['value'] in (20, 55, 105, 10):
             print(f"  [Dedup Debug] Cluster at ({cluster_x},{cluster_y}): candidates={[candidates[idx]['value'] for idx in cluster_indices]} → best={best_cand['value']} (score={best_score})")
         
-        lengths.append({
+        dimensions.append({
             'value': best_cand['value'],
             'bbox': (avg_x, avg_y, best_cand['bbox'][2], best_cand['bbox'][3]),
             'is_parenthesized': best_cand['is_parenthesized']
         })
         
-    print(f"  [Debug] Length candidates before overlap filter: {pre_overlap_count}")
-    print(f"  [Debug] Length candidates rejected by tape overlap: {tape_reject_count}")
-    print(f"  [Debug] Length candidates after dedup: {len(lengths)}")
-    print(f"  [Debug] Final lengths after dedup: {[(l['value'], l['bbox']) for l in lengths if l['value'] in (20, 55, 105, 10)]}")
+    print(f"  [Debug] Dimension candidates before overlap filter: {pre_overlap_count}")
+    print(f"  [Debug] Dimension candidates rejected by tape overlap: {tape_reject_count}")
+    print(f"  [Debug] Dimension candidates after dedup: {len(dimensions)}")
+    print(f"  [Debug] Final dimensions after dedup: {[(d['value'], d['bbox']) for d in dimensions if d['value'] in (20, 55, 105, 10)]}")
     
-    # Post-dedup fix: add nearby parentheses to finalized lengths
+    # Post-dedup fix: add nearby parentheses to finalized dimensions
     # Search in original ocr_data (not merged_data) to find parentheses that may have been merged away
-    for length in lengths:
-        lx, ly, lw, lh = length['bbox']
+    for dimension in dimensions:
+        lx, ly, lw, lh = dimension['bbox']
         lcx, lcy = lx + lw/2, ly + lh/2
-        val = length['value']
+        val = dimension['value']
         
         # Search for ( and ) tokens within proximity (25px default)
         found_paren_left = False
@@ -348,25 +348,25 @@ def detect_wire_lengths(ocr_data, tapes=None, connectors=None):
         # Update annotation if parentheses found
         if found_paren_left or found_paren_right:
             if found_paren_left and found_paren_right:
-                length['is_parenthesized'] = True
+                dimension['is_parenthesized'] = True
                 if val in (20, 55, 105, 10):
                     print(f"    [Paren Recovery] Both parens found for {val} → added ()")
             elif found_paren_left:
-                length['is_parenthesized'] = True
+                dimension['is_parenthesized'] = True
                 if val in (20, 55, 105, 10):
                     print(f"    [Paren Recovery] Left paren only for {val}")
             elif found_paren_right:
-                length['is_parenthesized'] = True
+                dimension['is_parenthesized'] = True
                 if val in (20, 55, 105, 10):
                     print(f"    [Paren Recovery] Right paren only for {val}")
     
     # Post-dedup fix: merge adjacent digit-only tokens (e.g., "10" + "5" → "105")
-    for i, length in enumerate(lengths):
-        lx, ly, lw, lh = length['bbox']
+    for i, dimension in enumerate(dimensions):
+        lx, ly, lw, lh = dimension['bbox']
         lcx, lcy = lx + lw/2, ly + lh/2
-        val = length['value']
+        val = dimension['value']
         
-        # Look for digit-only tokens adjacent to this length
+        # Look for digit-only tokens adjacent to this dimension
         for item in merged_data:
             if len(item) >= 5:
                 txt = item[0].strip()
@@ -386,15 +386,15 @@ def detect_wire_lengths(ocr_data, tapes=None, connectors=None):
                         # Determine if it's to the left or right
                         if ix + iw <= lx:  # to the left
                             merged_val = int(str(adj_val) + str(val))
-                            length['value'] = merged_val
+                            dimension['value'] = merged_val
                             print(f"  [Debug] Merged adjacent digits {adj_val}+{val}={merged_val}")
                         elif ix >= lx + lw:  # to the right
                             merged_val = int(str(val) + str(adj_val))
-                            length['value'] = merged_val
+                            dimension['value'] = merged_val
                             print(f"  [Debug] Merged adjacent digits {val}+{adj_val}={merged_val}")
     
-    return lengths
-def normalize_length_token(txt):
+    return dimensions
+def normalize_dimension_token(txt):
     s = txt.strip().upper().replace(" ", "")
     s = re.sub(r'[\+\-\=\,\.\:\;\'\"]', '', s)
     trans = str.maketrans({
@@ -417,4 +417,3 @@ def _median_token_height(ocr_data):
     if not heights:
         return 12.0
     return float(np.median(heights))
-

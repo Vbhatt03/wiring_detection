@@ -4,7 +4,7 @@ Wire Detection - Wiring Diagram Analysis Package
 This package contains modules for detecting and analyzing automotive wiring diagrams.
 
 Subpackages:
-- detectors/: Element detection modules (OCR, tapes, connectors, clips, lengths, wires)
+- detectors/: Element detection modules (OCR, tapes, connectors, clips, dimensions, wires)
 - graph_builders/: Connectivity graph construction and analysis
 - visualization/: Image annotation and reporting utilities
 """
@@ -19,13 +19,13 @@ from .detectors import (
     detect_tape_labels,
     detect_delphi_connectors,
     detect_blue_clips,
-    detect_wire_lengths,
+    detect_wire_dimensions,
     detect_wires,
     filter_wires_by_components,
     detect_components,
     TAPE_PATTERNS,
     TAPE_COLOR_BGR,
-    LENGTH_PATTERN,
+    DIMENSION_PATTERN,
 )
 
 # Import graph builder modules
@@ -73,7 +73,7 @@ __all__ = [
     'detect_tape_labels',
     'detect_delphi_connectors',
     'detect_blue_clips',
-    'detect_wire_lengths',
+    'detect_wire_dimensions',
     'detect_wires',
     'filter_wires_by_components',
     'detect_components',
@@ -102,7 +102,7 @@ __all__ = [
     'EXTRACT_FILTERS',
     'TAPE_PATTERNS',
     'TAPE_COLOR_BGR',
-    'LENGTH_PATTERN',
+    'DIMENSION_PATTERN',
     # Legacy support
     'Component',
     'Wire',

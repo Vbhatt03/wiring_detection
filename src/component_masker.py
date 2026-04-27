@@ -42,7 +42,7 @@ def create_wire_mask(
     clips: Iterable[Dict],
     tapes: Iterable[Dict],
     ocr_data: Iterable[Tuple],
-    lengths: Optional[Iterable[Dict]] = None,
+    dimensions: Optional[Iterable[Dict]] = None,
 ) -> np.ndarray:
     """Create a binary mask where wire pixels = 255 and background = 0.
 
@@ -54,10 +54,10 @@ def create_wire_mask(
 
     Phase-2 cleanup:
       • Removes small convex triangular arrowheads from dimension graphics
-      • Removes endpoint regions around non-parenthesized length annotations
+      • Removes endpoint regions around non-parenthesized dimension annotations
     """
-    if lengths is None:
-        lengths = []
+    if dimensions is None:
+        dimensions = []
 
     # 1. Binarise – Otsu on lightly blurred grayscale
     blurred = cv2.GaussianBlur(gray, (3, 3), 0)
@@ -104,8 +104,8 @@ def create_wire_mask(
             continue
         cv2.drawContours(binary, [approx], -1, 0, thickness=-1)
 
-    # 5. Remove non-parenthesized length endpoints (dimension-line labels)
-    for ln in lengths:
+    # 5. Remove non-parenthesized dimension endpoints (dimension-line labels)
+    for ln in dimensions:
         if ln.get("is_parenthesized", False):
             continue
         bbox = ln.get("bbox")

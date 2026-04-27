@@ -19,11 +19,11 @@ import cv2
 import numpy as np
 
 # Import detector modules
-from .detectors.ocr_detector import ocr_full, PADDLEOCR_OK, ocr_full_lengths
+from .detectors.ocr_detector import ocr_full, PADDLEOCR_OK, ocr_full_dimensions
 from .detectors.tape_detector import detect_tape_labels, TAPE_COLOR_BGR
 from .detectors.connector_detector import detect_delphi_connectors
 from .detectors.clip_detector import detect_blue_clips
-from .detectors.length_detector import detect_wire_lengths
+from .detectors.dimension_detector import detect_wire_dimensions
 from .detectors.wire_detector import detect_wires, filter_wires_by_components
 from .graph_builders.mask_tracer import trace_mask_connectivity
 
@@ -68,7 +68,7 @@ EXTRACT_FILTERS = {
     'tapes': True,
     'connectors': True,
     'wires': True,
-    'lengths': True,
+    'dimensions': True,
     'clips': True,
 }
 
@@ -97,23 +97,23 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
     print("Running OCR ...")
     ocr_data = ocr_full(gray)
     print(f"  {len(ocr_data)} text tokens found")
-    print("Running length OCR ...")
+    print("Running dimension OCR ...")
     import sys as _sys
     _sys.stdout.flush()
     if not ocr_use_tiling:
         print("  (tiling disabled - single pass)")
-    ocr_lengths = ocr_full_lengths(gray, use_tiling=ocr_use_tiling)
-    print(f"  {len(ocr_lengths)} length OCR tokens found")
-    # Diagnostic: dump all purely numeric tokens from ocr_lengths
+    ocr_dimensions = ocr_full_dimensions(gray, use_tiling=ocr_use_tiling)
+    print(f"  {len(ocr_dimensions)} dimension OCR tokens found")
+    # Diagnostic: dump all purely numeric tokens from ocr_dimensions
     import re as _re
-    numeric_hits = [(t[0], t[1], t[2]) for t in ocr_lengths if _re.fullmatch(r'[\(\+]*\d{1,4}[\+\)]*', t[0].strip())]
-    print(f"  [Debug] Numeric-pattern tokens in ocr_lengths: {len(numeric_hits)}")
+    numeric_hits = [(t[0], t[1], t[2]) for t in ocr_dimensions if _re.fullmatch(r'[\(\+]*\d{1,4}[\+\)]*', t[0].strip())]
+    print(f"  [Debug] Numeric-pattern tokens in ocr_dimensions: {len(numeric_hits)}")
     for tok in numeric_hits:
         print(f"    '{tok[0]}' at ({tok[1]}, {tok[2]})")
     # Save debug image showing where OCR found numeric tokens
     debug_ocr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
     seen_positions = set()
-    for tok in ocr_lengths:
+    for tok in ocr_dimensions:
         if _re.fullmatch(r'[\(\+]*\d{1,4}[\+\)]*', tok[0].strip()):
             pos_key = (tok[1] // 5, tok[2] // 5)  # bucket to 5px grid to dedup visually
             if pos_key not in seen_positions:
@@ -128,7 +128,7 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
     tapes = []
     if extract_filters.get('tapes', True):
         print("Detecting tape labels ...")
-        tapes = detect_tape_labels(img, gray, ocr_data + list(ocr_lengths))
+        tapes = detect_tape_labels(img, gray, ocr_data + list(ocr_dimensions))
         print(f"  {len(tapes)} tape labels")
 
     connectors = []
@@ -143,11 +143,11 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
         clips = detect_blue_clips(img, gray)
         print(f"  {len(clips)} blue clips")
 
-    lengths = []
-    if extract_filters.get('lengths', True):
-        print("Detecting wire-length annotations ...")
-        lengths = detect_wire_lengths(ocr_lengths, tapes, connectors)
-        print(f"  {len(lengths)} length annotations")
+    dimensions = []
+    if extract_filters.get('dimensions', True):
+        print("Detecting wire-dimension annotations ...")
+        dimensions = detect_wire_dimensions(ocr_dimensions, tapes, connectors)
+        print(f"  {len(dimensions)} dimension annotations")
 
     # Phase 3: Wire Detection & Connectivity
     wires = []
@@ -163,11 +163,11 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
             print(f"  {len(wires)} validated wires after anchoring to components")
             print("Building connectivity list (legacy heuristic) ...")
             connectivity_graph = build_connectivity_graph_heuristic(
-                tapes, connectors, clips, wires, lengths, img.shape, ocr_data
+                tapes, connectors, clips, wires, dimensions, img.shape, ocr_data
             )
         else:
             print("Creating wire mask ...")
-            wire_mask = create_wire_mask(gray, img, connectors, clips, tapes, ocr_data, lengths)
+            wire_mask = create_wire_mask(gray, img, connectors, clips, tapes, ocr_data, dimensions)
             cv2.imwrite('debug_wire_mask.png', wire_mask)
 
             nodes_dict = build_component_nodes(connectors, clips, ocr_data, tapes)
@@ -176,38 +176,38 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
             final_graph = trace_mask_connectivity(wire_mask, nodes_dict)
 
             print("Assigning wire properties ...")
-            assign_wire_properties(final_graph, tapes, lengths)
+            assign_wire_properties(final_graph, tapes, dimensions)
 
             if final_graph.number_of_edges() == 0:
                 print("    [WARN] Mask tracer produced no edges; falling back to legacy heuristic.")
                 wires = detect_wires(gray)
                 wires = filter_wires_by_components(wires, tapes + connectors + clips, ocr_data, margin=50)
                 connectivity_graph = build_connectivity_graph_heuristic(
-                    tapes, connectors, clips, wires, lengths, img.shape, ocr_data
+                    tapes, connectors, clips, wires, dimensions, img.shape, ocr_data
                 )
             else:
                 wires, connectivity_graph = convert_to_legacy_format(final_graph)
 
             if final_graph.number_of_edges() == 0:
-                print("    [WARN] Skeleton graph produced no component edges; falling back to legacy heuristic.")
+                print("        [WARN] Skeleton graph produced no component edges; falling back to legacy heuristic.")
                 wires = detect_wires(gray)
                 wires = filter_wires_by_components(wires, tapes + connectors + clips, ocr_data, margin=50)
                 connectivity_graph = build_connectivity_graph_heuristic(
-                    tapes, connectors, clips, wires, lengths, img.shape, ocr_data
+                    tapes, connectors, clips, wires, dimensions, img.shape, ocr_data
                 )
             else:
                 wires, connectivity_graph = convert_to_legacy_format(final_graph)
     
     # Phase 4: Reporting
-    print_report(tapes, connectors, wires, lengths, clips, connectivity_graph)
+    print_report(tapes, connectors, wires, dimensions, clips, connectivity_graph)
 
-    if extract_filters.get('lengths', True):
-        generate_verification_table(lengths, ocr_data, 
-                                   title="Wire Length Extraction Verification")
+    if extract_filters.get('dimensions', True):
+        generate_verification_table(dimensions, ocr_data, 
+                                   title="Wire Dimension Extraction Verification")
 
     # Phase 5: Output
     annotated = annotate(img, tapes, connectors, wires,
-                        lengths, clips, connectivity_graph, extract_filters)
+                        dimensions, clips, connectivity_graph, extract_filters)
     output_image_path = os.path.join(os.path.dirname(image_path) or '.', 'wiring_diagram_annotated.png')
     cv2.imwrite(output_image_path, annotated)
     print(f"\nAnnotated image saved: {output_image_path}")
@@ -239,7 +239,7 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
                 'tapes': e.get('wire_types', e.get('tapes', [])),
                 'from': e['node_a'],
                 'to': e['node_b'],
-                'length_mm': e['length_mm'],
+                'dimension_mm': e['dimension_mm'],
                 'segment_count': e.get('segment_count', 1),
                 'endpoint_1': [int(e['segments'][0]['p1'][0]), int(e['segments'][0]['p1'][1])] if e.get('segments') else [0, 0],
                 'endpoint_2': [int(e['segments'][0]['p2'][0]), int(e['segments'][0]['p2'][1])] if e.get('segments') else [0, 0]

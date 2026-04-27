@@ -79,7 +79,7 @@ def print_report(tapes, connectors, wires,
             # New format (merged)
             tapes_str = '+'.join(edge.get('wire_types', []))
         
-        len_str = f"{edge.get('length_mm', edge.get('length_mm', None))} mm" if edge.get('length_mm') else '—'
+        dim_str = f"{edge.get('dimension_mm', edge.get('dimension_mm', None))} mm" if edge.get('dimension_mm') else '—'
         from_str = edge['node_a'] if edge['node_a'] else '?'
         to_str = edge['node_b'] if edge['node_b'] else '?'
         
@@ -90,7 +90,7 @@ def print_report(tapes, connectors, wires,
         
         snapped_info = " [snapped]" if edge.get('snapped', False) else ""
         
-        print(f"      [{i}] {tapes_str:<20} {len_str:<10} {from_str:<18} → {to_str}{seg_info}{snapped_info}")
+        print(f"      [{i}] {tapes_str:<20} {dim_str:<10} {from_str:<18} → {to_str}{seg_info}{snapped_info}")
     
     print()
 

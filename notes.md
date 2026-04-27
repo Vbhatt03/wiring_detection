@@ -12,7 +12,7 @@ Each component type is detected via a dedicated detector module in `src/detector
 | **Tape Labels** | `tape_detector.py` | OCR text matching + regex patterns (VT-*, AT-*) | OpenCV, regex |
 | **Connectors** | `connector_detector.py` | Shape detection (rectangles w/ internal lines) + OCR "DELPHI" | OpenCV contours |
 | **Blue Clips** | `clip_detector.py` | HSV blue mask + HoughCircles (circular shapes) | OpenCV HSV/circles |
-| **Wire Lengths** | `length_detector.py` | Numeric OCR pattern matching + outlier filtering | PaddleOCR, regex |
+| **Wire Dimensions** | `dimension_detector.py` | Numeric OCR pattern matching + outlier filtering | PaddleOCR, regex |
 | **Wires** | `wire_detector.py` | Connected Components Labeling on dark/edge pixels | OpenCV CCL |
 
 All detectors are orchestrated by `run_detector.py:main()` which sequentially calls each detector and compiles results into a connectivity graph.
@@ -25,12 +25,12 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 
 **Primary Method**: `ocr_full()` - Single-pass PaddleOCR for general text tokens (connector labels, junction IDs, tape prefixes)
 
-**Complementary Specialized Pass**: `ocr_full_lengths()` - Runs alongside `ocr_full()` for numeric-only annotations
+**Complementary Specialized Pass**: `ocr_full_dimensions()` - Runs alongside `ocr_full()` for numeric-only annotations
 - **Pass 1**: 480px tiles at 0° (horizontal text) — catches most numeric labels
 - **Pass 2**: 320px tiles at 11 rotation angles [30°, 45°, 60°, 75°, 90°, 115°, 130°, 270°, 315°, 345°, 330°]
 - **Technique**: Image tiling + 2x upscaling to avoid PaddleOCR internal downscaling
-- **Use case**: Wire length annotations that appear at various angles
-- **Integration**: Results merged into `detect_tape_labels()` and fed exclusively to `detect_wire_lengths()`
+- **Use case**: Wire dimension annotations that appear at various angles
+- **Integration**: Results merged into `detect_tape_labels()` and fed exclusively to `detect_wire_dimensions()`
 
 **Additional Helper**: `ocr_region()` - OCR a specific bounding box crop (used for re-checking detected regions)
 
@@ -39,7 +39,7 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 ### Tape Label Detection
 
 **Current Method**: Multi-source OCR with targeted re-OCR
-1. **Token aggregation**: Merges tokens from `ocr_full()`, `ocr_full_lengths()`, and `ocr_upscaled()` (3x upscaling for small text)
+1. **Token aggregation**: Merges tokens from `ocr_full()`, `ocr_full_dimensions()`, and `ocr_upscaled()` (3x upscaling for small text)
    - Deduplicates by 10px center proximity
 2. **Direct regex matching**: `TAPE_PATTERNS = (VT|AT)\s*-\s*[A-Z]{1,2}`
    - Catches full labels in single tokens: `VT-BK`, `VT-WH`, `VT-PK`, `AT-BK`, etc.
@@ -53,11 +53,11 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 
 ---
 
-### Wire Length Detection
+### Wire Dimension Detection
 
-**Current Method**: `detect_wire_lengths()` with adaptive thresholds
+**Current Method**: `detect_wire_dimensions()` with adaptive thresholds
 - Numeric pattern matching: `^[\(\+]*\d{1,4}[\+\)]*$` (e.g., 0, (25), +150+)
-- Outlier filtering based on wire length scoring function
+- Outlier filtering based on wire dimension scoring function
 - Deduplication by spatial proximity (merge within 20px)
 
 **Pre-processing**: `merge_token_fragments()`
@@ -66,10 +66,10 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 - **Guard logic**: Prevents merging numeric tokens with label keywords (VT-, DELPHI, etc.)
 - **Output**: Cleaned OCR data ready for pattern matching
 
-**Scoring Function**: `score_wire_length_value()`
+**Scoring Function**: `score_wire_dimension_value()`
 - Prefers round multiples of 25mm (automotive standard)
 - Filters unrealistic values (< 10mm or > 600mm)
-- Weights common lengths (25, 50, 75, 100, 150, 200, 250)
+- Weights common dimensions (25, 50, 75, 100, 150, 200, 250)
 
 ---
 
@@ -98,8 +98,8 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 
 | Phase | Step | Description |
 |-------|------|-------------|
-| 1 | OCR | `ocr_full()` (general text) + `ocr_full_lengths()` (numeric annotations, 11 rotation angles) |
-| 2 | Detection | Tape labels, connectors, clips, wire lengths (each gated by extract filters) |
+| 1 | OCR | `ocr_full()` (general text) + `ocr_full_dimensions()` (numeric annotations, 11 rotation angles) |
+| 2 | Detection | Tape labels, connectors, clips, wire dimensions (each gated by extract filters) |
 | 3 | Connectivity | Wire mask or wire blob detection → graph building (see below) |
 | 4 | Output | `wiring_diagram_annotated.png` + `connectivity_graph.json` |
 
@@ -110,7 +110,7 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 1. `create_wire_mask()` — binary mask of wire pixels with component regions erased
 2. `build_component_nodes()` — flat dict of connectors, clips, tapes, junctions
 3. `trace_mask_connectivity()` — morphological closing → CCL noise removal → seed each component → multi-source BFS flood → wherever two labels meet = connection
-4. `assign_wire_properties()` — attaches `wire_type` and `length_mm` to each edge (80px proximity to path polyline)
+4. `assign_wire_properties()` — attaches `wire_type` and `dimension_mm` to each edge (80px proximity to path polyline)
 5. `convert_to_legacy_format()` — converts NetworkX graph to reporter format
 6. **Fallback**: if BFS produces 0 edges, automatically runs heuristic pipeline
 
@@ -129,8 +129,8 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 
 ### `--extract-only=<items>` / `--skip=<items>`
 
-Valid items: `tapes`, `connectors`, `wires`, `lengths`, `clips`
+Valid items: `tapes`, `connectors`, `wires`, `dimensions`, `clips`
 
 - `--extract-only=tapes,connectors` — disables all detectors except those listed
-- `--skip=clips,lengths` — disables only those detectors; all others run
+- `--skip=clips,dimensions` — disables only those detectors; all others run
 - Both flags are composable with `--legacy`

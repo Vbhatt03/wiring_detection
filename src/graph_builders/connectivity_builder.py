@@ -29,12 +29,12 @@ def merge_edges_by_component_pair(raw_edges, nodes_dict=None):
     Strategy:
     1. Group edges by (node_a, node_b) key
     2. For each group, collect all tape types and wire info
-    3. Pick primary length from highest-confidence detection
+    3. Pick primary dimension from highest-confidence detection
     4. Return list of merged edges
     
     Args:
         raw_edges: List of segment edges, each with:
-                   node_a, node_b, tapes, length_mm, p1, p2, snapped_a, snapped_b
+                   node_a, node_b, tapes, dimension_mm, p1, p2, snapped_a, snapped_b
         nodes_dict: Mapping of node_id to node info (used for junction detection)
     
     Returns:
@@ -75,20 +75,20 @@ def merge_edges_by_component_pair(raw_edges, nodes_dict=None):
         for edge in edges_in_group:
             all_tapes.update(edge['tapes'])
         
-        # Pick primary length:
+        # Pick primary dimension:
         # Prefer tape-anchor sources (more reliable) over wire-blob sources.
         # Among same source, prefer non-None values.
-        primary_length = None
+        primary_dimension = None
         # First pass: tape_anchor sources
         for edge in edges_in_group:
-            if edge.get('source') == 'tape_anchor' and edge.get('length_mm') is not None:
-                primary_length = edge['length_mm']
+            if edge.get('source') == 'tape_anchor' and edge.get('dimension_mm') is not None:
+                primary_dimension = edge['dimension_mm']
                 break
         # Second pass: any source
-        if primary_length is None:
+        if primary_dimension is None:
             for edge in edges_in_group:
-                if edge.get('length_mm') is not None:
-                    primary_length = edge['length_mm']
+                if edge.get('dimension_mm') is not None:
+                    primary_dimension = edge['dimension_mm']
                     break
         
         # Create merged edge
@@ -96,7 +96,7 @@ def merge_edges_by_component_pair(raw_edges, nodes_dict=None):
             'node_a': node_a,
             'node_b': node_b,
             'wire_types': sorted(all_tapes),  # Unique tape types
-            'length_mm': primary_length,
+            'dimension_mm': primary_dimension,
             'segment_count': len(edges_in_group),  # How many segments make up this connection
             'segments': edges_in_group,  # Keep reference to individual segments for detail
             'snapped': any(edge.get('snapped_a', False) or edge.get('snapped_b', False) 
@@ -476,14 +476,14 @@ def map_components_to_graph(skeleton_graph, components_dict, max_snap_distance=1
                 path_pts=path_pts,
                 path_length_px=length_px,
                 wire_type=None,
-                length_mm=None,
+                dimension_mm=None,
             )
 
     return final_graph
 
 
-def assign_wire_properties(graph, tapes, lengths):
-    """Assign wire type and length using nearest tape and length annotations."""
+def assign_wire_properties(graph, tapes, dimensions):
+    """Assign wire type and dimension using nearest tape and dimension annotations."""
     for u, v, attrs in graph.edges(data=True):
         pts = attrs.get('path_pts', [])
 
@@ -500,14 +500,14 @@ def assign_wire_properties(graph, tapes, lengths):
 
         best_len = None
         best_dist = 80.0
-        for ln in lengths:
+        for ln in dimensions:
             lbx, lby, lbw, lbh = ln['bbox']
             lc = (lbx + lbw / 2.0, lby + lbh / 2.0)
             d = _distance_point_to_polyline(lc, pts)
             if d < best_dist:
                 best_dist = d
                 best_len = ln['value']
-        attrs['length_mm'] = best_len
+        attrs['dimension_mm'] = best_len
 
 
 def convert_to_legacy_format(graph):
@@ -542,7 +542,7 @@ def convert_to_legacy_format(graph):
             'node_a': u,
             'node_b': v,
             'wire_types': wire_types,
-            'length_mm': attrs.get('length_mm'),
+            'dimension_mm': attrs.get('dimension_mm'),
             'segment_count': 1,
             'segments': [{
                 'p1': (int(p1[0]), int(p1[1])),
@@ -802,7 +802,7 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
                 min_len_dist = dist
                 nearest_length = ln['value']
         
-        segment_info['length_mm'] = nearest_length
+        segment_info['dimension_mm'] = nearest_length
         
         raw_edges.append(segment_info)
     
@@ -886,7 +886,7 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
             'node_b': nid_b,
             'snapped_a': True,
             'snapped_b': True,
-            'length_mm': tape_length,
+            'dimension_mm': tape_length,
             'source': 'tape_anchor'
         })
 
@@ -921,7 +921,7 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
             'node_b': 'Connector-1',
             'snapped_a': True,
             'snapped_b': True,
-            'length_mm': length_c1,
+            'dimension_mm': length_c1,
             'source': 'tape_anchor'
         })
 
@@ -939,7 +939,7 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
             'node_b': 'MLC001',
             'snapped_a': True,
             'snapped_b': True,
-            'length_mm': length_mlc,
+            'dimension_mm': length_mlc,
             'source': 'tape_anchor'
         })
 
@@ -965,7 +965,7 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, wires, le
             'p1': (j20['x'], j20['y']), 'p2': (x519['x'], x519['y']),
             'node_a': 'J20', 'node_b': x519_key,
             'snapped_a': True, 'snapped_b': True,
-            'length_mm': length_x519, 'source': 'tape_anchor'
+            'dimension_mm': length_x519, 'source': 'tape_anchor'
         })
 
     if supplemental:

@@ -10,7 +10,7 @@ The Wire Detection System processes high-resolution automotive wiring diagrams t
 - **Junctions**: Labeled connection points in the diagram
 - **Clips**: Blue Z-marker clips indicating wire harness bundles
 - **Tape Labels**: Wire type identifiers (VT-WH, VT-BK, etc.)
-- **Length Annotations**: Wire length measurements in millimeters
+- **Dimension Annotations**: Wire dimension measurements in millimeters
 
 ## Quick Start
 
@@ -35,7 +35,7 @@ python run.py /path/to/diagram.png
 python run.py diagram.png --extract-only=tapes,wires,clips
 
 # Skip certain elements
-python run.py diagram.png --skip=lengths
+python run.py diagram.png --skip=dimensions
 ```
 
 ### Output
@@ -60,7 +60,7 @@ src/
 │   ├── tape_detector.py         # Tape label detection
 │   ├── connector_detector.py    # Connector detection
 │   ├── clip_detector.py         # Clip detection
-│   └── length_detector.py       # Length annotation extraction
+│   └── dimension_detector.py       # Dimension annotation extraction
 │
 ├── graph_builders/              # Graph construction modules
 │   └── connectivity_builder.py  # Component-to-graph mapping
@@ -84,14 +84,14 @@ src/
 ## Detection Pipeline
 
 ### Phase 1: OCR Text Detection
-- Extract tape labels, connectors IDs, junction identifiers, and length annotations
+- Extract tape labels, connectors IDs, junction identifiers, and dimension annotations
 - Multi-angle OCR (36 angles) for robust rotation-invariant detection
 
 ### Phase 2: Component Detection
 - **Tape labels**: Shape detection (small rectangles) + OCR matching
 - **Connectors**: Delphi-style rectangle patterns with internal structure
 - **Clips**: Blue HSV color range + circular shape detection
-- **Lengths**: Numeric pattern recognition with deduplication
+- **Dimensions**: Numeric pattern recognition with deduplication
 
 ### Phase 3: Wire Extraction
 - **Mask creation**: Invert grayscale + remove colored overlays
@@ -107,7 +107,7 @@ src/
 ## Limitations & Future Work
 
 - **Connection accuracy**: Heuristic-based edge derivation may miss or misidentify connections
-- **Dimension mapping**: Wire type and length assignment not fully accurate
+- **Dimension mapping**: Wire type and dimension assignment not fully accurate
 - **Component classification**: Distinguishes connectors/clips from junctions but limited semantic understanding
 - **Dashed wire handling**: Currently works well but could be optimized further
 
