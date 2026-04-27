@@ -75,12 +75,23 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 
 ### Segment Detection
 
-**Default Method**: Binary Mask Tracing + Morphological Closing + Component Flood-Fill
-1. **Mask cleaning**: Morphological close with directional kernels (horizontal, vertical, isotropic ellipse) to bridge dash-dot gaps
-2. **Noise removal**: Connected Components Labeling (CCL) to filter tiny blobs (text, arrowheads)
-3. **Component seeding**: Seed each component (connector, clip, junction) with circle of influence
-4. **BFS flood-fill**: Multi-source BFS from each component's seed to label reachable segment pixels
-5. **Connectivity mapping**: Wherever two different component labels meet → segment connection
+**Default Method**: Binary Mask Tracing via `create_segment_mask()` + `trace_mask_connectivity()`
+
+**Step 1 — `create_segment_mask()` (component_masker.py)** — Create clean binary mask:
+1. **Otsu thresholding**: Gaussian blur (3×3) + inverted Otsu threshold → dark pixels = white (255), background = black (0)
+2. **Remove colour highlights**: Erase blue clip blobs (HSV 95-135 H) and yellow tape backgrounds (HSV 20-35 H) via range masking
+3. **Erase detected components**: Zero-out connector bboxes (±2px margin), clip circles (radius+3px), tape label boxes (±2px margin)
+4. **Remove arrowheads**: Find small (20–350px area) convex 3–4 vertex contours → erase (dimension line end arrows)
+5. **Remove dimension label endpoints**: Black out 20px circle around each non-parenthesized dimension annotation center
+6. **Morphological close**: 3×3 ellipse close (2 iterations) to bridge remaining dash-dot gaps
+
+**Step 2 — `trace_mask_connectivity()` (mask_tracer.py)** — BFS flood-fill from components:
+1. **Mask cleaning**: Additional morphological close with directional kernels (horizontal 1×45, vertical 45×1, isotropic 19×19 ellipse ×2)
+2. **Noise removal**: CCL to identify and filter tiny blobs (text chars, arrowheads) below `MIN_SEGMENT_AREA=80px`
+3. **Component seeding**: Seed each component (connector, clip, junction) with circular region of influence (radius `COMPONENT_EXPAND=25px`, +15px for junctions)
+4. **Multi-source BFS**: From each component's seed pixels, flood-fill outward along connected white pixels (8-connectivity)
+5. **Connectivity mapping**: Label each seed pixel with its component ID; wherever two different component IDs meet on a pixel boundary → segment connection
+6. **Graph building**: Convert labeled connectivity into NetworkX graph (one edge per component pair)
 
 **Legacy Method** (`--legacy` flag): Canny Edge Detection + HSV Masking + Connected Components Labeling
 1. **Edge detection**: Canny edge detection (thresholds 30-100)
@@ -112,12 +123,12 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 
 ### Default (no flags) — Mask-Tracer Pipeline
 
-1. `create_segment_mask()` — binary mask of segment pixels with component regions erased
-2. `build_component_nodes()` — flat dict of connectors, clips, tapes, junctions
-3. `trace_mask_connectivity()` — morphological closing → flood-fill from each component → wherever two labels meet = connection
-4. `assign_segment_properties()` — attaches `segment_type` and `dimension_mm` to each segment (80px proximity to path polyline)
-5. `convert_to_legacy_format()` — converts NetworkX graph to reporter format
-6. **Fallback**: if mask tracer produces 0 segments, automatically runs legacy CCL-based heuristic pipeline
+1. `create_segment_mask()` — Otsu threshold + component erasure → clean binary mask of segment pixels only
+2. `build_component_nodes()` — Build dict of connectors, clips, tapes, and junctions from OCR and detection results
+3. `trace_mask_connectivity()` — Morphological cleaning → CCL noise removal → seed each component → multi-source BFS → wherever two labels meet = segment connection
+4. `assign_segment_properties()` — Attaches `segment_type` (tape label) and `dimension_mm` to each segment (80px proximity to path polyline)
+5. `convert_to_legacy_format()` — Converts NetworkX graph to reporter-friendly dictionary format
+6. **Fallback**: If mask tracer produces 0 segments, automatically falls back to legacy CCL-based heuristic pipeline
 
 ### `--legacy` — Canny Edge Detection + CCL Pipeline
 
