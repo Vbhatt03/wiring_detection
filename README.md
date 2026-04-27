@@ -76,8 +76,7 @@ src/
 |------------|---------|---------|
 | OpenCV (cv2) | Image processing, morphology, connected components | ≥4.5.0 |
 | PaddleOCR | Text recognition (OCR) | 2.8.1 |
-| scikit-image | Skeletonization | ≥0.19.0 |
-| sknw | Skeleton graph extraction | ≥0.15 |
+
 | NetworkX | Graph representation | ≥2.8 |
 | NumPy | Numerical operations | ≥1.20.0 |
 
@@ -85,7 +84,8 @@ src/
 
 ### Phase 1: OCR Text Detection
 - Extract tape labels, connectors IDs, junction identifiers, and dimension annotations
-- Multi-angle OCR (36 angles) for robust rotation-invariant detection
+- Two separate passes: `ocr_full()` for general text, `ocr_full_dimensions()` for small numeric annotations
+- Tiled OCR with 11 rotation angles to catch angled dimension text
 
 ### Phase 2: Component Detection
 - **Tape labels**: Shape detection (small rectangles) + OCR matching
@@ -94,10 +94,9 @@ src/
 - **Dimensions**: Numeric pattern recognition with deduplication
 
 ### Phase 3: Segment Extraction
-- **Mask creation**: Invert grayscale + remove colored overlays
-- **Skeletonization**: Thin segment paths to 1-pixel centerlines
-- **Graph extraction**: Use Connected Components + PCA for endpoint detection
-- **Graph filtering**: Consolidate nearby nodes, bridge gaps, prune spurs
+- **Default (Mask-Tracer)**: Binary mask from Otsu thresholding + component erasure → morphological closing to bridge gaps → multi-source BFS flood-fill from component seeds → connections where two component labels meet
+- **Legacy (`--legacy`)**: Canny edge detection + HSV dark mask → Connected Components Labeling (CCL) → PCA endpoint extraction → heuristic tape-label pairing
+- **Fallback**: If mask-tracer produces 0 segments, automatically falls back to legacy CCL pipeline
 
 ### Phase 4: Output Generation
 - Convert detected elements to connectivity graph

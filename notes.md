@@ -13,7 +13,7 @@ Each component type is detected via a dedicated detector module in `src/detector
 | **Connectors** | `connector_detector.py` | Shape detection (rectangles w/ internal lines) + OCR "DELPHI" | OpenCV contours |
 | **Blue Clips** | `clip_detector.py` | HSV blue mask + HoughCircles (circular shapes) | OpenCV HSV/circles |
 | **Segment Dimensions** | `dimension_detector.py` | Numeric OCR pattern matching + outlier filtering | PaddleOCR, regex |
-| **Segments** | `segment_detector.py` | Connected Components Labeling on dark/edge pixels | OpenCV CCL |
+| **Segments** | `segment_detector.py` / `mask_tracer.py` | Mask tracing (default) or Canny+CCL (legacy `--legacy` flag) | OpenCV Canny/HSV/CCL
 
 All detectors are orchestrated by `run_detector.py:main()` which sequentially calls each detector and compiles results into a connectivity graph.
 
@@ -75,16 +75,21 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 
 ### Segment Detection
 
-**Current Method**: Connected Components Labeling + PCA Endpoints + Endpoint Graph Merging
-1. Segment mask creation: HSV dark + Canny edges AND operation
-2. Component subtraction: Remove filled blobs as topology barriers
-3. Gap bridging: 9x9 ellipse dilation (2 iterations)
-4. Connected Components Labeling: Extract individual traces
-5. PCA endpoint extraction: Project pixels onto primary axis to find true segment endpoints
-6. Endpoint graph + BFS: Three-criterion merging
-   - Proximity: < 100px apart
-   - Collinearity: angle difference < 45°
-   - Component blocking: gap doesn't cross detected components
+**Default Method**: Binary Mask Tracing + Morphological Closing + Component Flood-Fill
+1. **Mask cleaning**: Morphological close with directional kernels (horizontal, vertical, isotropic ellipse) to bridge dash-dot gaps
+2. **Noise removal**: Connected Components Labeling (CCL) to filter tiny blobs (text, arrowheads)
+3. **Component seeding**: Seed each component (connector, clip, junction) with circle of influence
+4. **BFS flood-fill**: Multi-source BFS from each component's seed to label reachable segment pixels
+5. **Connectivity mapping**: Wherever two different component labels meet → segment connection
+
+**Legacy Method** (`--legacy` flag): Canny Edge Detection + HSV Masking + Connected Components Labeling
+1. **Edge detection**: Canny edge detection (thresholds 30-100)
+2. **Dark mask**: HSV color range for dark pixels (V < 150, S < 100)
+3. **Segment mask**: AND operation between Canny edges and dark HSV mask
+4. **Component subtraction**: Remove filled blobs (connectors, clips) as topology barriers
+5. **Gap bridging**: 9x9 ellipse dilation (2 iterations), then morphological close/open
+6. **Connected Components Labeling (CCL)**: Extract individual segment traces from binary mask
+7. **Heuristic pairing**: Tape-label anchoring to pair components into connections
 
 **Component Detection** (helper): `detect_components()`
 - Identifies filled blobs (connectors, clips) as electrical topology barriers
@@ -100,7 +105,7 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 |-------|------|-------------|
 | 1 | OCR | `ocr_full()` (general text) + `ocr_full_dimensions()` (numeric annotations, 11 rotation angles) |
 | 2 | Detection | Tape labels, connectors, clips, segment dimensions (each gated by extract filters) |
-| 3 | Connectivity | Segment mask or segment blob detection → graph building (see below) |
+| 3 | Connectivity | `create_segment_mask()` + `trace_mask_connectivity()` BFS flood-fill → graph building |
 | 4 | Output | `segment_diagram_annotated.png` + `connectivity_graph.json` |
 
 ---
@@ -109,16 +114,14 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 
 1. `create_segment_mask()` — binary mask of segment pixels with component regions erased
 2. `build_component_nodes()` — flat dict of connectors, clips, tapes, junctions
-3. `trace_mask_connectivity()` — morphological closing → CCL noise removal → seed each component → multi-source BFS flood → wherever two labels meet = connection
+3. `trace_mask_connectivity()` — morphological closing → flood-fill from each component → wherever two labels meet = connection
 4. `assign_segment_properties()` — attaches `segment_type` and `dimension_mm` to each segment (80px proximity to path polyline)
 5. `convert_to_legacy_format()` — converts NetworkX graph to reporter format
-6. **Fallback**: if BFS produces 0 segments, automatically runs heuristic pipeline
+6. **Fallback**: if mask tracer produces 0 segments, automatically runs legacy CCL-based heuristic pipeline
 
----
+### `--legacy` — Canny Edge Detection + CCL Pipeline
 
-### `--legacy` — Heuristic Pipeline
-
-1. `detect_segments()` — 5-phase blob detector (HSV+Canny → CCL → PCA endpoints → endpoint graph → BFS merge)
+1. `detect_segments(gray)` — Canny edge detection + HSV dark mask → CCL noise removal → extract individual segment traces with PCA endpoints
 2. `filter_segments_by_components()` — drops segments with endpoints > 50px from any component
 3. `build_connectivity_graph_heuristic()`:
    - Pass 1: project tape labels onto segment traces (80px perpendicular corridor)
