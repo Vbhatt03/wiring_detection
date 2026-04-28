@@ -9,7 +9,10 @@ This package contains specialized detection modules for different diagram elemen
 - segment_detector: Segment segment detection and filtering
 """
 
-from .ocr_detector import ocr_full, ocr_region, PADDLEOCR_OK
+from .ocr_detector import (
+    ocr_full, ocr_region, PADDLEOCR_OK, OCR_OK,
+    set_ocr_backend, get_ocr_backend
+)
 from .tape_detector import detect_tape_labels, TAPE_PATTERNS, TAPE_COLOR_BGR
 from .connector_detector import detect_delphi_connectors
 from .clip_detector import detect_blue_clips
@@ -20,6 +23,9 @@ __all__ = [
     'ocr_full',
     'ocr_region',
     'PADDLEOCR_OK',
+    'OCR_OK',
+    'set_ocr_backend',
+    'get_ocr_backend',
     'detect_tape_labels',
     'detect_delphi_connectors',
     'detect_blue_clips',

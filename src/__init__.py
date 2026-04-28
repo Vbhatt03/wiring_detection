@@ -16,6 +16,8 @@ __author__ = "Segment Detection Team"
 from .detectors import (
     ocr_full,
     ocr_region,
+    set_ocr_backend,
+    get_ocr_backend,
     detect_tape_labels,
     detect_delphi_connectors,
     detect_blue_clips,
@@ -70,6 +72,8 @@ __all__ = [
     # Detector functions
     'ocr_full',
     'ocr_region',
+    'set_ocr_backend',
+    'get_ocr_backend',
     'detect_tape_labels',
     'detect_delphi_connectors',
     'detect_blue_clips',

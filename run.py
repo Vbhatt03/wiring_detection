@@ -6,7 +6,10 @@ Run the segment diagram detector from the root directory.
 
 Usage:
     python run.py automotive_schematic.png
-    python run.py /path/to/diagram.png
+    python run.py /path/to/diagram.png --ocr-backend=paddle
+    python run.py /path/to/diagram.png --ocr-backend=easyocr
+    python run.py /path/to/diagram.png --ocr-backend=tesseract
+    python run.py /path/to/diagram.png --skip=tapes,dimensions --ocr-backend=easyocr
 """
 
 import sys
@@ -18,6 +21,7 @@ if __name__ == '__main__':
     extract_filters = EXTRACT_FILTERS.copy()
     use_legacy = False
     ocr_use_tiling = True
+    ocr_backend = "paddle"  # Default backend
     
     # Parse optional arguments
     for arg in sys.argv[2:]:
@@ -32,5 +36,8 @@ if __name__ == '__main__':
             use_legacy = True
         elif arg == '--ocr-no-tiling':
             ocr_use_tiling = False
+        elif arg.startswith('--ocr-backend='):
+            ocr_backend = arg.split('=')[1]
     
-    main(image_path, extract_filters, use_legacy=use_legacy, ocr_use_tiling=ocr_use_tiling)
+    main(image_path, extract_filters, use_legacy=use_legacy,
+         ocr_use_tiling=ocr_use_tiling, ocr_backend=ocr_backend)

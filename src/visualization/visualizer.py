@@ -12,8 +12,8 @@ TAPE_COLOR_BGR = {
     'VT-WH':  (  0,   0, 180),   # dark red
     'VT-BK':  (  0,   0, 180),   # dark red
     'VT-PK':  (  0,   0, 180),   # dark red
-    'AT-BK':  (  0,   0, 180),   # dark red
-    'COT-BK': (  0,   0, 180),   # dark red
+    # 'AT-BK':  (  0,   0, 180),   # dark red
+    # 'COT-BK': (  0,   0, 180),   # dark red
     'DEFAULT':(  0,   0, 180),   # dark red
 }
 

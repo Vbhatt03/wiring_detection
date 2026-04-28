@@ -19,7 +19,10 @@ import cv2
 import numpy as np
 
 # Import detector modules
-from .detectors.ocr_detector import ocr_full, PADDLEOCR_OK, ocr_full_dimensions
+from .detectors.ocr_detector import (
+    ocr_full, OCR_OK, PADDLEOCR_OK, ocr_full_dimensions,
+    set_ocr_backend, get_ocr_backend
+)
 from .detectors.tape_detector import detect_tape_labels, TAPE_COLOR_BGR
 from .detectors.connector_detector import detect_delphi_connectors
 from .detectors.clip_detector import detect_blue_clips
@@ -73,7 +76,8 @@ EXTRACT_FILTERS = {
 }
 
 
-def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy=False, ocr_use_tiling=True):
+def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy=False,
+         ocr_use_tiling=True, ocr_backend="paddle"):
     """
     Main detection pipeline orchestrator.
     
@@ -82,9 +86,14 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
         extract_filters: Dict specifying which elements to extract
         use_legacy: If True, use legacy heuristic pipeline instead of skeleton-based
         ocr_use_tiling: If False, OCR scans entire image without tiling. Default True.
+        ocr_backend: OCR backend to use: "paddle" (default), "easyocr", or "tesseract"
     """
     if extract_filters is None:
         extract_filters = EXTRACT_FILTERS.copy()
+    
+    # Switch OCR backend if not default
+    if ocr_backend != "paddle":
+        set_ocr_backend(ocr_backend)
     
     print(f"Loading: {image_path}")
     img = load(image_path)

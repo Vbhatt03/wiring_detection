@@ -120,12 +120,12 @@ def classify_segment(label):
         return 'White (VT-WH)'
     if label in ('VT-PK',):
         return 'Pink (VT-PK)'
-    if label in ('AT-BK',):
-        return 'Black braided (AT-BK)'
-    if label.startswith('COT'):
-        return 'Corrugated tube (COT-BK)'
-    if label.startswith('MLC'):
-        return 'Multi-layer conduit (MLC)'
+    # if label in ('AT-BK',):
+    #     return 'Black braided (AT-BK)'
+    # if label.startswith('COT'):
+    #     return 'Corrugated tube (COT-BK)'
+    # if label.startswith('MLC'):
+    #     return 'Multi-layer conduit (MLC)'
     return 'Unknown'
 
 
@@ -658,28 +658,28 @@ def build_connectivity_graph_heuristic(tape_labels, connectors, clips, segments,
                     'type': 'junction'
                 }
     
-    # ─── Synthesise C2 node from AT-BK tape position if not shape-detected ───
-    # AT-BK tape sits right next to the C2 connector at the bottom-right.
-    # If no connector is within 200px of the AT-BK tape, add a synthetic C2 node.
-    connector_ids = [nid for nid, n in nodes_dict.items() if n['type'] == 'connector']
-    for tape in tape_labels:
-        if tape['label'].upper() != 'AT-BK':
-            continue
-        tbx, tby, tbw, tbh = tape['bbox']
-        tcx, tcy = tbx + tbw // 2, tby + tbh // 2
-        nearby_conn = any(
-            ((nodes_dict[nid]['x'] - tcx) ** 2 + (nodes_dict[nid]['y'] - tcy) ** 2) ** 0.5 < 200
-            for nid in connector_ids
-        )
-        if not nearby_conn and 'C2' not in nodes_dict:
-            # Place C2 to the LEFT of the AT-BK label (where the cross-hatch box is)
-            nodes_dict['C2'] = {
-                'x': max(0, int(tcx - 80)),
-                'y': int(tcy),
-                'label': 'C2 (1045235)',
-                'type': 'connector'
-            }
-            print(f"    [SyntheticNode] Added C2 at ({nodes_dict['C2']['x']},{nodes_dict['C2']['y']}) from AT-BK tape position")
+    # # ─── Synthesise C2 node from AT-BK tape position if not shape-detected ───
+    # # AT-BK tape sits right next to the C2 connector at the bottom-right.
+    # # If no connector is within 200px of the AT-BK tape, add a synthetic C2 node.
+    # connector_ids = [nid for nid, n in nodes_dict.items() if n['type'] == 'connector']
+    # for tape in tape_labels:
+    #     if tape['label'].upper() != 'AT-BK':
+    #         continue
+    #     tbx, tby, tbw, tbh = tape['bbox']
+    #     tcx, tcy = tbx + tbw // 2, tby + tbh // 2
+    #     nearby_conn = any(
+    #         ((nodes_dict[nid]['x'] - tcx) ** 2 + (nodes_dict[nid]['y'] - tcy) ** 2) ** 0.5 < 200
+    #         for nid in connector_ids
+    #     )
+    #     if not nearby_conn and 'C2' not in nodes_dict:
+    #         # Place C2 to the LEFT of the AT-BK label (where the cross-hatch box is)
+    #         nodes_dict['C2'] = {
+    #             'x': max(0, int(tcx - 80)),
+    #             'y': int(tcy),
+    #             'label': 'C2 (1045235)',
+    #             'type': 'connector'
+    #         }
+    #         print(f"    [SyntheticNode] Added C2 at ({nodes_dict['C2']['x']},{nodes_dict['C2']['y']}) from AT-BK tape position")
 
     if junction_count > 0:
         print(f"    [Junctions] Detected {junction_count} junction/conduit points")
