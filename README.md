@@ -28,14 +28,21 @@ pip install -r requirements.txt
 ### Usage
 
 ```bash
-# Basic detection
+# Basic detection (PaddleOCR by default)
 python run.py /path/to/diagram.png
+
+# Switch OCR backend
+python run.py diagram.png --ocr-backend=easyocr
+python run.py diagram.png --ocr-backend=tesseract
 
 # With filtering options
 python run.py diagram.png --extract-only=tapes,segments,clips
 
 # Skip certain elements
 python run.py diagram.png --skip=dimensions
+
+# Combine OCR and filter flags
+python run.py diagram.png --ocr-backend=easyocr --skip=clips
 ```
 
 ### Output
@@ -75,8 +82,9 @@ src/
 | Technology | Purpose | Version |
 |------------|---------|---------|
 | OpenCV (cv2) | Image processing, morphology, connected components | ≥4.5.0 |
-| PaddleOCR | Text recognition (OCR) | 2.8.1 |
-
+| PaddleOCR | Text recognition (OCR, default) | 2.8.1 |
+| EasyOCR | Alternative OCR backend (`--ocr-backend=easyocr`) | ≥1.6 |
+| pytesseract | Alternative OCR backend (`--ocr-backend=tesseract`) | ≥0.3 |
 | NetworkX | Graph representation | ≥2.8 |
 | NumPy | Numerical operations | ≥1.20.0 |
 
@@ -85,7 +93,10 @@ src/
 ### Phase 1: OCR Text Detection
 - Extract tape labels, connectors IDs, junction identifiers, and dimension annotations
 - Two separate passes: `ocr_full()` for general text, `ocr_full_dimensions()` for small numeric annotations
-- Tiled OCR with 11 rotation angles to catch angled dimension text
+- Backend-selectable via `--ocr-backend`: `paddle` (default), `easyocr`, `tesseract`
+- **PaddleOCR**: Tiled OCR with 11 rotation angles (2-pass), 2× upscale — tuned for `det_limit_side_len=960`
+- **EasyOCR**: Single-pass tiling (1000px tiles), no rotation passes — angle handled natively
+- **Tesseract**: Full-image single pass, 3× upscale, `--psm 11 --oem 3` — no rotation support
 
 ### Phase 2: Component Detection
 - **Tape labels**: Shape detection (small rectangles) + OCR matching

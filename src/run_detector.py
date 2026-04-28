@@ -41,7 +41,7 @@ from .graph_builders.connectivity_builder import (
 
 # Import visualization and reporting modules
 from .visualization.visualizer import annotate, draw_label
-from .visualization.reporter import print_report, generate_verification_table
+from .visualization.reporter import print_report
 
 # Import skeleton and connectivity modules
 from .component_masker import create_segment_mask
@@ -210,9 +210,9 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
     # Phase 4: Reporting
     print_report(tapes, connectors, segments, dimensions, clips, connectivity_graph)
 
-    if extract_filters.get('dimensions', True):
-        generate_verification_table(dimensions, ocr_data, 
-                                   title="Segment Dimension Extraction Verification")
+    # if extract_filters.get('dimensions', True):
+    #     generate_verification_table(dimensions, ocr_data, 
+    #                                title="Segment Dimension Extraction Verification")
 
     # Phase 5: Output
     annotated = annotate(img, tapes, connectors, segments,

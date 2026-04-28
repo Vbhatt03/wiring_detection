@@ -95,80 +95,80 @@ def print_report(tapes, connectors, segments,
     print()
 
 
-def generate_verification_table(lengths, ocr_data, title="Segment Length Extraction Verification"):
-    """
-    Generate a manual verification table for extracted segment lengths.
-    Shows: what text was detected → what value was extracted → verification status
+# def generate_verification_table(lengths, ocr_data, title="Segment Length Extraction Verification"):
+#     """
+#     Generate a manual verification table for extracted segment lengths.
+#     Shows: what text was detected → what value was extracted → verification status
     
-    Args:
-        lengths: List of extracted length annotations
-        ocr_data: List of all OCR detections
-        title: Title for the verification table
-    """
-    print()
-    print('  ' + '='*90)
-    print(f'  {title}')
-    print('  ' + '='*90)
+#     Args:
+#         lengths: List of extracted length annotations
+#         ocr_data: List of all OCR detections
+#         title: Title for the verification table
+#     """
+#     print()
+#     print('  ' + '='*90)
+#     print(f'  {title}')
+#     print('  ' + '='*90)
     
-    if not lengths:
-        print("  [No segment lengths extracted]")
-        return
+#     if not lengths:
+#         print("  [No segment lengths extracted]")
+#         return
     
-    # Build lookup of all numeric text from OCR
-    numeric_ocr = []
-    for item in ocr_data:
-        if len(item) >= 5:
-            txt, x, y, w, h = item[0], item[1], item[2], item[3], item[4]
-            clean = txt.strip().replace(' ', '')
-            # Check if it's a number (possibly parenthesized)
-            if re.match(r'^\(?\d+\)?$', clean):
-                val = int(re.sub(r'[^\d]', '', clean))
-                numeric_ocr.append({
-                    'text': txt,
-                    'value': val,
-                    'position': (int(round(x)), int(round(y))),
-                    'extracted': False
-                })
+#     # Build lookup of all numeric text from OCR
+#     numeric_ocr = []
+#     for item in ocr_data:
+#         if len(item) >= 5:
+#             txt, x, y, w, h = item[0], item[1], item[2], item[3], item[4]
+#             clean = txt.strip().replace(' ', '')
+#             # Check if it's a number (possibly parenthesized)
+#             if re.match(r'^\(?\d+\)?$', clean):
+#                 val = int(re.sub(r'[^\d]', '', clean))
+#                 numeric_ocr.append({
+#                     'text': txt,
+#                     'value': val,
+#                     'position': (int(round(x)), int(round(y))),
+#                     'extracted': False
+#                 })
     
-    # Mark which OCR detections were actually extracted
-    for ln in lengths:
-        x, y, w, h = ln['bbox']
-        cx, cy = int(round(x + w/2)), int(round(y + h/2))
-        # Find closest OCR detection
-        for ocr_item in numeric_ocr:
-            ox, oy = ocr_item['position']
-            if abs(cx - ox) < 20 and abs(cy - oy) < 20:
-                ocr_item['extracted'] = True
-                ocr_item['extracted_value'] = ln['value']
-                break
+#     # Mark which OCR detections were actually extracted
+#     for ln in lengths:
+#         x, y, w, h = ln['bbox']
+#         cx, cy = int(round(x + w/2)), int(round(y + h/2))
+#         # Find closest OCR detection
+#         for ocr_item in numeric_ocr:
+#             ox, oy = ocr_item['position']
+#             if abs(cx - ox) < 20 and abs(cy - oy) < 20:
+#                 ocr_item['extracted'] = True
+#                 ocr_item['extracted_value'] = ln['value']
+#                 break
     
-    # Print table
-    print(f"\n  {'#':<3} {'OCR Text':<15} {'Position':<15} {'Extracted':<12} {'Status':<20} {'Notes':<20}")
-    print('  ' + '-'*90)
+#     # Print table
+#     print(f"\n  {'#':<3} {'OCR Text':<15} {'Position':<15} {'Extracted':<12} {'Status':<20} {'Notes':<20}")
+#     print('  ' + '-'*90)
     
-    row_num = 1
-    for ocr_item in numeric_ocr:
-        text = ocr_item['text']
-        x, y = ocr_item['position']
-        extracted = '✓ ' + str(ocr_item.get('extracted_value', '')) if ocr_item['extracted'] else '✗'
-        status = 'EXTRACTED' if ocr_item['extracted'] else 'NOT EXTRACTED'
+#     row_num = 1
+#     for ocr_item in numeric_ocr:
+#         text = ocr_item['text']
+#         x, y = ocr_item['position']
+#         extracted = '✓ ' + str(ocr_item.get('extracted_value', '')) if ocr_item['extracted'] else '✗'
+#         status = 'EXTRACTED' if ocr_item['extracted'] else 'NOT EXTRACTED'
         
-        # Add notes for non-extracted items
-        notes = ""
-        if not ocr_item['extracted']:
-            # Could be due to various reasons: overlapping with labels, outlier, etc.
-            notes = "(filtered out)"
+#         # Add notes for non-extracted items
+#         notes = ""
+#         if not ocr_item['extracted']:
+#             # Could be due to various reasons: overlapping with labels, outlier, etc.
+#             notes = "(filtered out)"
         
-        pos_str = f"({x}, {y})"
-        print(f"  {row_num:<3} {text:<15} {pos_str:<15} {extracted:<12} {status:<20} {notes:<20}")
-        row_num += 1
+#         pos_str = f"({x}, {y})"
+#         print(f"  {row_num:<3} {text:<15} {pos_str:<15} {extracted:<12} {status:<20} {notes:<20}")
+#         row_num += 1
     
-    # Summary statistics
-    extracted_count = sum(1 for item in numeric_ocr if item['extracted'])
-    total_count = len(numeric_ocr)
+#     # Summary statistics
+#     extracted_count = sum(1 for item in numeric_ocr if item['extracted'])
+#     total_count = len(numeric_ocr)
     
-    print('  ' + '-'*90)
-    print(f"  Summary: {extracted_count} extracted out of {total_count} detected numeric values")
-    print(f"  Extraction rate: {100*extracted_count//total_count if total_count > 0 else 0}%")
-    print('  ' + '='*90)
-    print()
+#     print('  ' + '-'*90)
+#     print(f"  Summary: {extracted_count} extracted out of {total_count} detected numeric values")
+#     print(f"  Extraction rate: {100*extracted_count//total_count if total_count > 0 else 0}%")
+#     print('  ' + '='*90)
+#     print()

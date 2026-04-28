@@ -6,12 +6,11 @@ This package contains modules for visualizing and reporting results:
 """
 
 from .visualizer import annotate, draw_label, TAPE_COLOR_BGR
-from .reporter import print_report, generate_verification_table
+from .reporter import print_report
 
 __all__ = [
     'annotate',
     'draw_label',
     'TAPE_COLOR_BGR',
     'print_report',
-    'generate_verification_table',
 ]

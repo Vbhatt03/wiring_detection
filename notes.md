@@ -8,8 +8,8 @@ Each component type is detected via a dedicated detector module in `src/detector
 
 | Component | Script | Detection Method | Key Libraries |
 |-----------|--------|------------------|----------------|
-| **Text** | `ocr_detector.py` | PaddleOCR with upscaling | PaddleOCR |
-| **Tape Labels** | `tape_detector.py` | OCR text matching + regex patterns (VT-*, AT-*) | OpenCV, regex |
+| **Text** | `ocr_detector.py` | Selectable OCR backend (PaddleOCR default) | PaddleOCR / EasyOCR / Tesseract |
+| **Tape Labels** | `tape_detector.py` | OCR text matching + regex patterns (VT-*) | OpenCV, regex |
 | **Connectors** | `connector_detector.py` | Shape detection (rectangles w/ internal lines) + OCR "DELPHI" | OpenCV contours |
 | **Blue Clips** | `clip_detector.py` | HSV blue mask + HoughCircles (circular shapes) | OpenCV HSV/circles |
 | **Segment Dimensions** | `dimension_detector.py` | Numeric OCR pattern matching + outlier filtering | PaddleOCR, regex |
@@ -23,13 +23,20 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 
 ### OCR Text Detection
 
-**Primary Method**: `ocr_full()` - Single-pass PaddleOCR for general text tokens (connector labels, junction IDs, tape prefixes)
+**Backend Selection**: `--ocr-backend=<name>` flag selects the OCR engine at runtime. Default is `paddle`.
 
-**Complementary Specialized Pass**: `ocr_full_dimensions()` - Runs alongside `ocr_full()` for numeric-only annotations
-- **Pass 1**: 480px tiles at 0° (horizontal text) — catches most numeric labels
-- **Pass 2**: 320px tiles at 11 rotation angles [30°, 45°, 60°, 75°, 90°, 115°, 130°, 270°, 315°, 345°, 330°]
-- **Technique**: Image tiling + 2x upscaling to avoid PaddleOCR internal downscaling
-- **Use case**: Segment dimension annotations that appear at various angles
+| Backend | Flag | Tiling | Rotation | Upscale | Min Conf |
+|---------|------|--------|----------|---------|----------|
+| PaddleOCR | `--ocr-backend=paddle` | 2-pass (480/320px tiles) | 11 angles | 2× | 8–20 |
+| EasyOCR | `--ocr-backend=easyocr` | 1-pass (1000px tiles) | Native | 2× | 30 |
+| Tesseract | `--ocr-backend=tesseract` | Full image | None | 3× | 50 |
+
+**Primary Method**: `ocr_full()` - Backend-agnostic dispatcher; routes to per-backend implementation
+
+**Complementary Specialized Pass**: `ocr_full_dimensions()` - Per-backend tuned for small numeric annotations
+- **PaddleOCR**: Pass 1: 480px tiles at 0°; Pass 2: 320px tiles at 11 angles [30°, 45°, 60°, 75°, 90°, 115°, 130°, 270°, 315°, 345°, 330°] — works around `det_limit_side_len=960`
+- **EasyOCR**: Single-pass 1000px tiles, no rotation (angle handled natively by built-in classifier)
+- **Tesseract**: Full image single pass, `--psm 11 --oem 3` (no tiling benefit; no rotation support)
 - **Integration**: Results merged into `detect_tape_labels()` and fed exclusively to `detect_segment_dimensions()`
 
 **Additional Helper**: `ocr_region()` - OCR a specific bounding box crop (used for re-checking detected regions)
@@ -41,13 +48,13 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 **Current Method**: Multi-source OCR with targeted re-OCR
 1. **Token aggregation**: Merges tokens from `ocr_full()`, `ocr_full_dimensions()`, and `ocr_upscaled()` (3x upscaling for small text)
    - Deduplicates by 10px center proximity
-2. **Direct regex matching**: `TAPE_PATTERNS = (VT|AT)\s*-\s*[A-Z]{1,2}`
-   - Catches full labels in single tokens: `VT-BK`, `VT-WH`, `VT-PK`, `AT-BK`, etc.
+2. **Direct regex matching**: `TAPE_PATTERNS = VT\s*-\s*[A-Z]{1,2}`
+   - Catches full labels in single tokens: `VT-BK`, `VT-WH`, `VT-PK`, etc.
    - Matches optional whitespace around hyphens
-3. **Region re-OCR**: For any token matching `^VT$|^AT$|^VT-$|^AT-$`
+   - **Note**: `AT-BK` was intentionally removed — it caused false positives
+3. **Region re-OCR**: For any token matching `^VT$|^VT-$`
    - Crops grayscale ±60px rightward expansion
    - Re-OCRs crop with `ocr_region()` to catch split/missing fragments
-   - **Example**: Bare `AT` token triggers re-OCR → recovers full `AT-BK` label
    - **Note**: `COT-BK` requires full string in OCR (no prefix trigger for region re-OCR)
 4. **Deduplication**: Proximity-based within 30px center distance; same label → keep first occurrence
 
@@ -141,10 +148,29 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 
 ---
 
+### `--ocr-backend=<backend>`
+
+Selects the OCR engine used for all text detection. Must be set before OCR runs.
+
+| Value | Engine | Notes |
+|-------|--------|-------|
+| `paddle` | PaddleOCR (default) | 2-pass tiling, 11 rotation angles, best for diagrams |
+| `easyocr` | EasyOCR | 1-pass tiling, native angle detection, faster |
+| `tesseract` | Tesseract | Full image, no rotation, lightest weight |
+
+```bash
+python run.py diagram.png --ocr-backend=easyocr
+python run.py diagram.png --ocr-backend=tesseract --ocr-no-tiling
+```
+
+### `--ocr-no-tiling`
+
+Disables tiling for dimension OCR pass — runs `ocr_full()` directly on the full image instead. Composable with `--ocr-backend`.
+
 ### `--extract-only=<items>` / `--skip=<items>`
 
 Valid items: `tapes`, `connectors`, `segments`, `dimensions`, `clips`
 
 - `--extract-only=tapes,connectors` — disables all detectors except those listed
 - `--skip=clips,dimensions` — disables only those detectors; all others run
-- Both flags are composable with `--legacy`
+- Both flags are composable with `--legacy` and `--ocr-backend`

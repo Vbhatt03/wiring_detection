@@ -46,7 +46,6 @@ from .visualization import (
     annotate,
     draw_label,
     print_report,
-    generate_verification_table,
 )
 
 # Import other core modules
@@ -94,7 +93,6 @@ __all__ = [
     'annotate',
     'draw_label',
     'print_report',
-    'generate_verification_table',
     # Core utilities
     'create_segment_mask',
     'skeletonize_segment_mask',
