@@ -165,7 +165,7 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
     if extract_filters.get('segments', True):
         if use_legacy:
             print("Detecting segments (legacy heuristic) ...")
-            segments = detect_segments(gray)
+            segments = detect_segments(gray, img)
             print(f"  {len(segments)} raw segment traces detected")
             print("Applying component-anchored validation ...")
             segments = filter_segments_by_components(segments, tapes + connectors + clips, ocr_data, margin=50)
@@ -189,7 +189,7 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
 
             if final_graph.number_of_edges() == 0:
                 print("    [WARN] Mask tracer produced no segments; falling back to legacy heuristic.")
-                segments = detect_segments(gray)
+                segments = detect_segments(gray, img)
                 segments = filter_segments_by_components(segments, tapes + connectors + clips, ocr_data, margin=50)
                 connectivity_graph = build_connectivity_graph_heuristic(
                     tapes, connectors, clips, segments, dimensions, img.shape, ocr_data
@@ -199,7 +199,7 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
 
             if final_graph.number_of_edges() == 0:
                 print("        [WARN] Skeleton graph produced no component segments; falling back to legacy heuristic.")
-                segments = detect_segments(gray)
+                segments = detect_segments(gray, img)
                 segments = filter_segments_by_components(segments, tapes + connectors + clips, ocr_data, margin=50)
                 connectivity_graph = build_connectivity_graph_heuristic(
                     tapes, connectors, clips, segments, dimensions, img.shape, ocr_data

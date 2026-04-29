@@ -79,7 +79,7 @@ def angle_between(p1, p2):
     return np.degrees(np.arctan2(dy, dx)) % 180
 
 
-def detect_segments(gray):
+def detect_segments(gray, img_color=None):
     """
     Segment detection with Union-Find based trace merging.
     
@@ -102,11 +102,21 @@ def detect_segments(gray):
     6. Collect merged groups, find true terminals, output final segments
     
     This method correctly handles dashed segments and respects component boundaries.
+    
+    Parameters:
+        gray: Grayscale image
+        img_color: Color image (BGR). If None, will convert gray to BGR.
     """
     
-    img_color = cv2.imread('automotive_schematic.png')
     if img_color is None:
+        img_color = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    
+    if gray is None or img_color is None:
         return []
+    
+    # Ensure both images have the same shape
+    if gray.shape[:2] != img_color.shape[:2]:
+        raise ValueError(f"Gray and color images must have the same dimensions. Got gray: {gray.shape[:2]}, img_color: {img_color.shape[:2]}")
 
     # ────────────────────────────────────────────────────────────
     # PHASE A: Component Detection
