@@ -126,6 +126,8 @@ All detectors are orchestrated by `run_detector.py:main()` which sequentially ca
 | 3 | Connectivity | `create_segment_mask()` + `trace_mask_connectivity()` BFS flood-fill → graph building |
 | 4 | Output | `segment_diagram_annotated.png` + `connectivity_graph.json` |
 
+**Note**: With `--debug-masks-only`, only mask generation runs (no phases 1-2, partial phase 3, no phase 4)
+
 ---
 
 ### Default (no flags) — Mask-Tracer Pipeline
@@ -174,3 +176,19 @@ Valid items: `tapes`, `connectors`, `segments`, `dimensions`, `clips`
 - `--extract-only=tapes,connectors` — disables all detectors except those listed
 - `--skip=clips,dimensions` — disables only those detectors; all others run
 - Both flags are composable with `--legacy` and `--ocr-backend`
+
+### `--debug-masks-only`
+
+**Fast debug mode**: Skips all detection and OCR, only generates segment masks.
+
+- **Input**: Image file
+- **Output**: 
+  - `debug_segment_mask.png` — raw binary mask from Otsu threshold with components/annotations removed
+  - `debug_cleaned_mask.png` — cleaned mask after morphological operations and noise removal
+- **Speed**: ~1-2 seconds for typical 1200×1600 image (no OCR overhead)
+- **Use case**: Rapid iteration on mask generation parameters without running full detection pipeline
+- **Incompatible with**: `--legacy`, `--extract-only`, `--skip`, `--ocr-backend` (ignored if specified)
+
+```bash
+python run.py diagram.png --debug-masks-only
+```

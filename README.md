@@ -43,6 +43,9 @@ python run.py diagram.png --skip=dimensions
 
 # Combine OCR and filter flags
 python run.py diagram.png --ocr-backend=easyocr --skip=clips
+
+# Debug mode: Generate only segment masks (no detection/OCR)
+python run.py diagram.png --debug-masks-only
 ```
 
 ### Output
@@ -51,6 +54,13 @@ The detector generates:
 - `connectivity_graph.json`: Complete graph structure with nodes, segments, and routes
 - Annotated image with detected elements labeled
 - Console report showing detected components and connections
+
+#### Debug Mode Outputs (--debug-masks-only)
+
+When using `--debug-masks-only`, the pipeline skips all detection and OCR, generating only:
+- `debug_segment_mask.png`: Raw binary mask from image thresholding with components/annotations removed
+- `debug_cleaned_mask.png`: Cleaned mask after morphological operations and noise removal
+- Use this mode for rapid iteration on mask generation parameters without OCR/detection overhead
 
 ## Project Structure
 
