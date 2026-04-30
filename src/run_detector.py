@@ -77,7 +77,7 @@ EXTRACT_FILTERS = {
 
 
 def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy=False,
-         ocr_use_tiling=True, ocr_backend="paddle"):
+         ocr_use_tiling=True, ocr_backend="paddle", debug_masks_only=False):
     """
     Main detection pipeline orchestrator.
     
@@ -87,6 +87,8 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
         use_legacy: If True, use legacy heuristic pipeline instead of skeleton-based
         ocr_use_tiling: If False, OCR scans entire image without tiling. Default True.
         ocr_backend: OCR backend to use: "paddle" (default), "easyocr", or "tesseract"
+        debug_masks_only: If True, only run functions needed to generate debug_segment_mask 
+                          and debug_cleaned_mask, skipping reporting and output. Default False.
     """
     if extract_filters is None:
         extract_filters = EXTRACT_FILTERS.copy()
@@ -100,6 +102,20 @@ def main(image_path='automotive_schematic.png', extract_filters=None, use_legacy
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     H, W = img.shape[:2]
     print(f"Image size: {W}x{H}")
+    
+    # Early exit for debug masks only
+    if debug_masks_only:
+        print("Generating debug masks only (skipping detection)...")
+        print("Creating segment mask ...")
+        segment_mask = create_segment_mask(gray, img, [], [], [], [], [])
+        cv2.imwrite('debug_segment_mask.png', segment_mask)
+        
+        print("Tracing segment blobs ...")
+        trace_mask_connectivity(segment_mask, {})
+        
+        print("Debug masks generated: debug_segment_mask.png, debug_cleaned_mask.png")
+        return None
+    
     print(f"Extract filters: {extract_filters}")
 
     # Phase 1: OCR

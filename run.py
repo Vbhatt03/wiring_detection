@@ -10,6 +10,7 @@ Usage:
     python run.py /path/to/diagram.png --ocr-backend=easyocr
     python run.py /path/to/diagram.png --ocr-backend=tesseract
     python run.py /path/to/diagram.png --skip=tapes,dimensions --ocr-backend=easyocr
+    python run.py /path/to/diagram.png --debug-masks-only
 """
 
 import sys
@@ -22,6 +23,7 @@ if __name__ == '__main__':
     use_legacy = False
     ocr_use_tiling = True
     ocr_backend = "paddle"  # Default backend
+    debug_masks_only = False
     
     # Parse optional arguments
     for arg in sys.argv[2:]:
@@ -38,6 +40,9 @@ if __name__ == '__main__':
             ocr_use_tiling = False
         elif arg.startswith('--ocr-backend='):
             ocr_backend = arg.split('=')[1]
+        elif arg == '--debug-masks-only':
+            debug_masks_only = True
     
     main(image_path, extract_filters, use_legacy=use_legacy,
-         ocr_use_tiling=ocr_use_tiling, ocr_backend=ocr_backend)
+         ocr_use_tiling=ocr_use_tiling, ocr_backend=ocr_backend,
+         debug_masks_only=debug_masks_only)
