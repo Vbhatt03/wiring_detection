@@ -207,11 +207,14 @@ class ThicknessSegregationPipeline:
                 aspect = max(w, h) / max(min(w, h), 1)
     
                 # Large route sections are always kept regardless of shape
-                if area > 5000:
-                    pass  # skip filtering for large components — they're legitimate route sections
-                # Small-to-medium compact+hollow components = panels/electronic components
-                elif aspect < 4.0 and fill < 0.70 and solidity < 0.82:
-                    removed_components.append(("panel:compact+hollow", fill))
+                cx = x + w // 2  # component center x
+                # Main harness is in left-center; anything far right is a panel/component
+                if cx > self.w * 0.65:
+                    removed_components.append(("right-side:panel", cx))
+                    continue
+                # Small scattered blobs anywhere
+                if area < 500:
+                    removed_components.append(("small-blob", area))
                     continue
                 # Route: solidity < 0.80 (thicker wires can have higher solidity), fill < 0.72
                 # if solidity > 0.80:
@@ -292,8 +295,10 @@ class ThicknessSegregationPipeline:
         
         # Final overlay on original
         result = self.img_color.copy()
-        result[skel_seg > 0] = [0, 255, 0]  # Green for segments
-        result[skel_route > 0] = [0, 0, 255]  # Red for routes
+        skel_seg_thick = cv2.dilate(skel_seg, np.ones((3, 3), np.uint8), iterations=1)
+        skel_route_thick = cv2.dilate(skel_route, np.ones((3, 3), np.uint8), iterations=1)
+        result[skel_seg_thick > 0] = [0, 255, 0]  # Green for segments
+        result[skel_route_thick > 0] = [0, 0, 255]  # Red for routes
         self.save_debug(result, "17_final_overlay_color", 
                        "Final: segments (green) + routes (red)")
         
