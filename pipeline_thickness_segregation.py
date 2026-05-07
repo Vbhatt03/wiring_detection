@@ -203,13 +203,23 @@ class ThicknessSegregationPipeline:
                 if x < 150:
                     removed_components.append(("x<150", x))
                     continue
+                # Rectangular components: compact (aspect < 3.0) AND dense (fill > 0.55)
+                aspect = max(w, h) / max(min(w, h), 1)
+    
+                # Large route sections are always kept regardless of shape
+                if area > 5000:
+                    pass  # skip filtering for large components — they're legitimate route sections
+                # Small-to-medium compact+hollow components = panels/electronic components
+                elif aspect < 4.0 and fill < 0.70 and solidity < 0.82:
+                    removed_components.append(("panel:compact+hollow", fill))
+                    continue
                 # Route: solidity < 0.80 (thicker wires can have higher solidity), fill < 0.72
-                if solidity > 0.80:
-                    removed_components.append(("solidity>0.80", solidity))
-                    continue
-                if fill > 0.72:
-                    removed_components.append(("fill>0.72", fill))
-                    continue
+                # if solidity > 0.80:
+                #     removed_components.append(("solidity>0.80", solidity))
+                #     continue
+                # if fill > 0.72:
+                #     removed_components.append(("fill>0.72", fill))
+                #     continue
             
             final_mask[labels == i] = 255
             kept += 1
