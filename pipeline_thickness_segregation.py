@@ -73,15 +73,15 @@ class ThicknessSegregationPipeline:
         # Horizontal grid
         h_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (150, 1))
         h_opened = cv2.morphologyEx(binary, cv2.MORPH_OPEN, h_kernel)
-        h_eroded = cv2.erode(h_opened, np.ones((4, 1), np.uint8))
-        h_dilated = cv2.dilate(h_eroded, np.ones((8, 1), np.uint8))
+        h_eroded = cv2.erode(h_opened, np.ones((3, 1), np.uint8))
+        h_dilated = cv2.dilate(h_eroded, np.ones((5, 1), np.uint8))
         h_grid = cv2.subtract(h_opened, h_dilated)
         
         # Vertical grid
         v_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 150))
         v_opened = cv2.morphologyEx(binary, cv2.MORPH_OPEN, v_kernel)
-        v_eroded = cv2.erode(v_opened, np.ones((1, 4), np.uint8))
-        v_dilated = cv2.dilate(v_eroded, np.ones((1, 8), np.uint8))
+        v_eroded = cv2.erode(v_opened, np.ones((1, 3), np.uint8))
+        v_dilated = cv2.dilate(v_eroded, np.ones((1, 5), np.uint8))
         v_grid = cv2.subtract(v_opened, v_dilated)
         
         # Combine and remove
@@ -115,8 +115,8 @@ class ThicknessSegregationPipeline:
         self.save_debug(binary_no_grid, "04a_segments_no_grid", "After lower-bound filter (5x5, removes <4px grid lines)")
         
         # Upper bound: 13x13 erode keeps only structures > 12px (routes/components)
-        thick_only = cv2.erode(binary_no_grid, np.ones((15, 15), np.uint8), iterations=1)
-        thick_restored = cv2.dilate(thick_only, np.ones((15, 15), np.uint8), iterations=1)
+        thick_only = cv2.erode(binary_no_grid, np.ones((21, 21), np.uint8), iterations=1)
+        thick_restored = cv2.dilate(thick_only, np.ones((21, 21), np.uint8), iterations=1)
         
         # Segments = what's left after removing thick structures
         segments_raw = cv2.subtract(binary_no_grid, thick_restored)
